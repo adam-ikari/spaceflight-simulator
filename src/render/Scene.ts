@@ -1,10 +1,27 @@
-import * as THREE from 'three';
-import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
+import * as B from '@babylonjs/core';
+import { Effects } from './Effects';
+import { buildRocketModel, type RocketFeatures, type RocketModel } from './RocketModel';
+import type { Phase } from '../director/phases';
+import type { StageSpec } from '../physics/RocketEquation';
 
 /** km → scene units (Earth radius 6371 km renders as 63.71 units). */
 const SCALE = 1 / 100;
 const EARTH_RADIUS = 6371 * SCALE;
 const MAX_TRAJECTORY_POINTS = 8192;
+const UP = new B.Vector3(0, 1, 0);
+
+/** Fallback vehicle shown until the designer pushes the first archetype. */
+const DEFAULT_STAGES: StageSpec[] = [
+  {
+    propellantId: 'LOX_RP1',
+    ofRatio: 2.56,
+    pcMPa: 10,
+    expansionRatio: 25,
+    propellantMassKg: 400_000,
+    dryMassKg: 25_000,
+    thrustN: 4_000_000,
+  },
+];
 
 /** Camera view modes — which fixed/relative transform drives the camera. */
 export type ViewMode = 'orbit' | 'chase' | 'ground' | 'cockpit' | 'overview' | 'control';
@@ -12,196 +29,285 @@ export type ViewMode = 'orbit' | 'chase' | 'ground' | 'cockpit' | 'overview' | '
 export class Scene {
   private readonly enabled = typeof window !== 'undefined' && typeof document !== 'undefined';
 
-  private readonly scene!: THREE.Scene;
-  private readonly camera!: THREE.PerspectiveCamera;
-  private readonly renderer!: THREE.WebGLRenderer;
-  private readonly controls!: OrbitControls;
-  private readonly rocket!: THREE.Mesh;
-  private readonly trajectory!: THREE.Line;
-  private readonly trajectoryPositions!: Float32Array;
+  private readonly engine!: B.Engine;
+  private readonly scene!: B.Scene;
+  private readonly canvas!: HTMLCanvasElement;
+  private readonly orbitCam!: B.ArcRotateCamera;
+  private readonly freeCam!: B.FreeCamera;
+  private readonly rocketRoot!: B.TransformNode;
+  private readonly effects!: Effects;
+  private vehicle: RocketModel | null = null;
+  private vehicleHeight = 4;
+  private phase: Phase = 'PAD';
+  private readonly trajectoryPositions = new Float32Array(MAX_TRAJECTORY_POINTS * 3);
+  private trajectory!: B.LinesMesh;
   private trajectoryCount = 0;
   private view: ViewMode = 'control';
-  private rocketPos = new THREE.Vector3(0, EARTH_RADIUS + 1.2, 0);
-  private prevPos = new THREE.Vector3(0, EARTH_RADIUS + 1.2, 0);
-  private velocity = new THREE.Vector3();
+  private readonly rocketPos = new B.Vector3(EARTH_RADIUS, 0, 0);
+  private readonly prevPos = new B.Vector3(EARTH_RADIUS, 0, 0);
+  private readonly padPos = new B.Vector3(EARTH_RADIUS, 0, 0);
   private readonly onResize = (): void => {
-    const width = this.container.clientWidth || window.innerWidth;
-    const height = this.container.clientHeight || window.innerHeight;
-    this.camera.aspect = width / height;
-    this.camera.updateProjectionMatrix();
-    this.renderer.setSize(width, height);
+    if (!this.enabled) return;
+    this.engine.resize();
   };
 
   constructor(private readonly container: HTMLElement) {
     if (!this.enabled) return;
 
-    const width = container.clientWidth || window.innerWidth;
-    const height = container.clientHeight || window.innerHeight;
+    this.canvas = document.createElement('canvas');
+    this.canvas.style.width = '100%';
+    this.canvas.style.height = '100%';
+    this.canvas.style.display = 'block';
+    this.canvas.style.touchAction = 'none';
+    this.canvas.style.outline = 'none';
+    container.appendChild(this.canvas);
 
-    this.scene = new THREE.Scene();
-    this.scene.background = new THREE.Color(0x05070f);
+    this.engine = new B.Engine(this.canvas, true, {
+      antialias: true,
+      stencil: true,
+      preserveDrawingBuffer: true,
+    });
+    this.engine.setHardwareScalingLevel(1 / Math.min(window.devicePixelRatio || 1, 2));
+    this.engine.resize();
 
-    this.camera = new THREE.PerspectiveCamera(50, width / height, 0.1, 200_000);
-    this.camera.position.set(0, EARTH_RADIUS * 1.4, EARTH_RADIUS * 3);
-    this.camera.lookAt(0, EARTH_RADIUS, 0);
+    this.scene = new B.Scene(this.engine);
+    this.scene.clearColor = new B.Color4(0.02, 0.027, 0.058, 1);
 
-    this.renderer = new THREE.WebGLRenderer({ antialias: true });
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-    this.renderer.setSize(width, height);
-    container.appendChild(this.renderer.domElement);
+    // Sun + ambient fill.
+    const hemi = new B.HemisphericLight('ambient', new B.Vector3(0.2, 1, 0.1), this.scene);
+    hemi.intensity = 0.65;
+    hemi.groundColor = new B.Color3(0.05, 0.08, 0.14);
+    const sun = new B.DirectionalLight('sun', new B.Vector3(1, 0.6, 0.4), this.scene);
+    sun.intensity = 2.2;
+    sun.position = new B.Vector3(1, 0.6, 0.4).normalize().scale(EARTH_RADIUS * 20);
 
-    this.controls = new OrbitControls(this.camera, this.renderer.domElement);
-    this.controls.target.set(0, EARTH_RADIUS, 0);
-    this.controls.enableDamping = true;
-    this.controls.minDistance = EARTH_RADIUS * 1.05;
-
-    // Sun + fill light.
-    const sun = new THREE.DirectionalLight(0xffffff, 3);
-    sun.position.set(1, 0.6, 0.4).normalize().multiplyScalar(EARTH_RADIUS * 20);
-    this.scene.add(sun, new THREE.AmbientLight(0x223344, 1));
-
-    // Earth.
-    const earthGeometry = new THREE.SphereGeometry(EARTH_RADIUS, 64, 48);
-    const earth = new THREE.Mesh(
-      earthGeometry,
-      new THREE.MeshStandardMaterial({ color: 0x1b5fb5, roughness: 0.85, metalness: 0.05 }),
+    // Earth (centre at origin, radius = 6371 km scaled).
+    const earth = B.MeshBuilder.CreateSphere(
+      'earth',
+      { diameter: EARTH_RADIUS * 2, segments: 48 },
+      this.scene,
     );
-    this.scene.add(earth);
+    const earthMat = new B.PBRMaterial('earthMat', this.scene);
+    earthMat.albedoColor = new B.Color3(0.11, 0.37, 0.71);
+    earthMat.metallic = 0;
+    earthMat.roughness = 0.88;
+    earth.material = earthMat;
 
-    // Rocket.
-    this.rocket = new THREE.Mesh(
-      new THREE.ConeGeometry(0.6, 2.4, 16),
-      new THREE.MeshStandardMaterial({ color: 0xdddddd, roughness: 0.4, metalness: 0.6 }),
+    // Cameras: one orbit rig, one free rig for the fixed/relative views.
+    this.freeCam = new B.FreeCamera(
+      'free',
+      new B.Vector3(EARTH_RADIUS * 1.6, EARTH_RADIUS * 0.3, EARTH_RADIUS * 2.2),
+      this.scene,
     );
-    this.rocket.position.set(0, EARTH_RADIUS + 1.2, 0);
-    this.scene.add(this.rocket);
+    this.freeCam.minZ = 0.1;
+    this.freeCam.maxZ = 200_000;
+    this.freeCam.fov = 0.9;
+    this.freeCam.setTarget(this.padPos);
 
-    // Trajectory line with preallocated dynamic buffer.
-    this.trajectoryPositions = new Float32Array(MAX_TRAJECTORY_POINTS * 3);
-    const trajectoryGeometry = new THREE.BufferGeometry();
-    trajectoryGeometry.setAttribute(
-      'position',
-      new THREE.BufferAttribute(this.trajectoryPositions, 3).setUsage(THREE.DynamicDrawUsage),
+    this.orbitCam = new B.ArcRotateCamera(
+      'orbit',
+      -Math.PI / 2,
+      Math.PI / 3,
+      EARTH_RADIUS * 3,
+      this.padPos.clone(),
+      this.scene,
     );
-    trajectoryGeometry.setDrawRange(0, 0);
-    this.trajectory = new THREE.Line(
-      trajectoryGeometry,
-      new THREE.LineBasicMaterial({ color: 0xffb347 }),
+    this.orbitCam.minZ = 0.1;
+    this.orbitCam.maxZ = 200_000;
+    this.orbitCam.lowerRadiusLimit = EARTH_RADIUS * 1.05;
+    this.orbitCam.upperRadiusLimit = EARTH_RADIUS * 12;
+    this.orbitCam.wheelDeltaPercentage = 0.02;
+    this.scene.activeCamera = this.freeCam;
+
+    // Rocket root: position = director position, local +Y = velocity.
+    this.rocketRoot = new B.TransformNode('rocketRoot', this.scene);
+    this.rocketRoot.rotationQuaternion = B.Quaternion.Identity();
+    this.rocketRoot.position.copyFrom(this.rocketPos);
+
+    this.effects = new Effects(this.scene, this.padPos);
+    this.setVehicle(DEFAULT_STAGES, { escapeSystem: 'tower', hasSolidBooster: false });
+
+    // Trajectory trail (preallocated, degenerate tail hidden on the first point).
+    const initial = new Array<B.Vector3>(MAX_TRAJECTORY_POINTS);
+    for (let i = 0; i < MAX_TRAJECTORY_POINTS; i++) initial[i] = new B.Vector3(0, 0, 0);
+    this.trajectory = B.MeshBuilder.CreateLines(
+      'trajectory',
+      { points: initial, updatable: true },
+      this.scene,
     );
-    this.trajectory.frustumCulled = false;
-    this.scene.add(this.trajectory);
+    this.trajectory.color = new B.Color3(1, 0.7, 0.28);
+    this.trajectory.isPickable = false;
+    this.trajectory.alwaysSelectAsActiveMesh = true;
 
     window.addEventListener('resize', this.onResize);
+
   }
 
   /** Available camera views (Chinese labels in index.html). */
   readonly views: ViewMode[] = ['control', 'orbit', 'chase', 'ground', 'cockpit', 'overview'];
 
-  /** Advance the active camera and render one frame. */
   update(dtSec: number): void {
     if (!this.enabled) return;
-    this.applyView(dtSec);
-    this.renderer.render(this.scene, this.camera);
+    const dir = this.rocketPos.subtract(this.prevPos);
+    if (dir.lengthSquared() > 1e-8) {
+      dir.normalize();
+    } else {
+      dir.copyFrom(this.rocketPos).normalize();
+      if (dir.lengthSquared() < 1e-8) dir.copyFrom(UP);
+    }
+
+    const q = this.rocketRoot.rotationQuaternion;
+    if (q) B.Quaternion.FromUnitVectorsToRef(UP, dir, q);
+
+    this.prevPos.copyFrom(this.rocketPos);
+
+    this.effects.setPhase(this.phase);
+    this.effects.update(dtSec, dir);
+    this.applyView(dir);
+    this.scene.render();
+  }
+
+  /** Set the mission phase driving engine/plume/reentry effects. */
+  setPhase(phase: Phase): void {
+    this.phase = phase;
   }
 
   /** Switch to a camera view mode. */
   setView(mode: ViewMode): void {
     this.view = mode;
+    if (!this.enabled) return;
+    if (mode === 'orbit') {
+      this.scene.activeCamera = this.orbitCam;
+      this.orbitCam.attachControl(false);
+    } else {
+      this.orbitCam.detachControl();
+      this.scene.activeCamera = this.freeCam;
+    }
   }
 
   /** Position the rocket (input in km) and remember it for view framing. */
   setRocketPosition(pos: [number, number, number]): void {
     if (!this.enabled) return;
-    this.rocket.position.set(pos[0] * SCALE, pos[1] * SCALE, pos[2] * SCALE);
     this.rocketPos.set(pos[0] * SCALE, pos[1] * SCALE, pos[2] * SCALE);
+    this.rocketRoot.position.copyFrom(this.rocketPos);
   }
 
   /** Append a point to the trajectory trail (input in km). */
   addTrajectoryPoint(pos: [number, number, number]): void {
     if (!this.enabled || this.trajectoryCount >= MAX_TRAJECTORY_POINTS) return;
-    const i = this.trajectoryCount * 3;
-    this.trajectoryPositions[i] = pos[0] * SCALE;
-    this.trajectoryPositions[i + 1] = pos[1] * SCALE;
-    this.trajectoryPositions[i + 2] = pos[2] * SCALE;
+    const x = pos[0] * SCALE;
+    const y = pos[1] * SCALE;
+    const z = pos[2] * SCALE;
+    // Extend the tail with the newest point so unused vertices stay degenerate.
+    for (let i = this.trajectoryCount; i < MAX_TRAJECTORY_POINTS; i++) {
+      this.trajectoryPositions[i * 3] = x;
+      this.trajectoryPositions[i * 3 + 1] = y;
+      this.trajectoryPositions[i * 3 + 2] = z;
+    }
     this.trajectoryCount++;
+    this.trajectory.updateVerticesData(
+      B.VertexBuffer.PositionKind,
+      this.trajectoryPositions,
+      false,
+      false,
+    );
+  }
 
-    const attribute = this.trajectory.geometry.getAttribute('position') as THREE.BufferAttribute;
-    attribute.needsUpdate = true;
-    this.trajectory.geometry.setDrawRange(0, this.trajectoryCount);
+  /** Rebuild the detailed vehicle model from the designer's stage stack. */
+  setVehicle(stages: StageSpec[], features: RocketFeatures): void {
+    if (!this.enabled) return;
+    if (this.vehicle) this.vehicle.root.dispose(false, true);
+
+    const model = buildRocketModel(this.scene, stages, features);
+    model.root.parent = this.rocketRoot;
+    // Builder origin is the base: the stack grows outward from the pad point.
+    this.vehicle = model;
+    this.vehicleHeight = model.height;
+
+    this.effects.attachRocket(this.rocketRoot, model.root, model.radius, model.height);
   }
 
   /** Drive the camera from the current view mode and rocket position. */
-  private applyView(dtSec: number): void {
-    if (dtSec > 0) {
-      this.velocity.subVectors(this.rocketPos, this.prevPos).divideScalar(dtSec);
-    }
-    this.prevPos.copy(this.rocketPos);
-
-    this.controls.enabled = this.view === 'orbit';
+  private applyView(dir: B.Vector3): void {
     if (this.view === 'orbit') {
-      this.controls.update();
+      this.scene.activeCamera = this.orbitCam;
       return;
     }
+    this.scene.activeCamera = this.freeCam;
 
-    const up = new THREE.Vector3(0, 1, 0);
+    const cam = this.freeCam;
+    const rp = this.rocketPos;
+    const h = this.vehicleHeight;
+    // Pad tangent frame (pad sits on the +X surface).
+    const padRadial = this.padPos.clone().normalize();
+    const tan = B.Vector3.Cross(padRadial, UP).normalize();
+    const up = B.Vector3.Cross(tan, padRadial).normalize();
+    const center = rp.add(dir.scale(h * 0.5));
+
     switch (this.view) {
       case 'chase': {
-        // Follow from behind/above the rocket.
-        const offset = new THREE.Vector3(0, 4, 14);
-        this.camera.position.copy(this.rocketPos).add(offset);
-        this.camera.lookAt(this.rocketPos);
+        // Follow from behind/above the rocket along its flight axis.
+        const radial = rp.clone().normalize();
+        const candidate = center
+          .add(radial.scale(h * 1.8))
+          .subtract(dir.scale(h * 1.2))
+          .add(tan.scale(h * 0.8));
+        const len = candidate.length();
+        if (len < EARTH_RADIUS + 0.5) {
+          candidate.scaleInPlace((EARTH_RADIUS + 0.5) / (len || 1));
+        }
+        cam.position.copyFrom(candidate);
+        cam.setTarget(center);
         break;
       }
       case 'ground': {
-        // Fixed near the launch pad, looking up at the rocket.
-        this.camera.position.set(EARTH_RADIUS * 0.15, EARTH_RADIUS * 0.99, 0);
-        this.camera.lookAt(this.rocketPos);
+        // Fixed beside the pad, looking up at the rocket.
+        cam.position.copyFrom(
+          this.padPos
+            .add(tan.scale(h * 1.6))
+            .add(up.scale(h * 0.2))
+            .add(padRadial.scale(h * 0.15)),
+        );
+        cam.setTarget(center);
         break;
       }
       case 'cockpit': {
-        // At the rocket, looking along the velocity vector.
-        const look =
-          this.velocity.lengthSq() > 1e-6 ? this.velocity.clone().normalize() : up.clone();
-        this.camera.position.copy(this.rocketPos).addScaledVector(look, 1.5);
-        this.camera.lookAt(this.rocketPos.clone().addScaledVector(look, 20));
+        // From the nose, looking along the velocity vector.
+        cam.position.copyFrom(rp.add(dir.scale(h * 0.85)));
+        cam.setTarget(rp.add(dir.scale(h * 0.85 + 20)));
         break;
       }
       case 'control': {
-        // Launch-control vantage beside the pad (director pad is the +X surface).
-        this.camera.position.set(
-          EARTH_RADIUS * 1.001,
-          EARTH_RADIUS * 0.06,
-          EARTH_RADIUS * 0.03,
+        // Launch-control vantage beside the +X surface pad, tracking the rocket.
+        cam.position.copyFrom(
+          this.padPos
+            .add(tan.scale(h * 1.2))
+            .add(up.scale(h * 0.5))
+            .add(padRadial.scale(h * 0.2)),
         );
-        this.camera.lookAt(this.rocketPos);
+        cam.setTarget(center);
         break;
       }
       case 'overview': {
         // Far camera framing Earth + trajectory.
-        const dir = this.rocketPos.clone().normalize();
-        this.camera.position
-          .copy(dir.multiplyScalar(EARTH_RADIUS * 1.6))
-          .add(new THREE.Vector3(EARTH_RADIUS * 0.4, EARTH_RADIUS * 0.2, EARTH_RADIUS * 0.5));
-        this.camera.lookAt(0, EARTH_RADIUS * 0.5, 0);
+        const target = center.scale(0.5);
+        cam.position.copyFrom(
+          target.add(
+            new B.Vector3(EARTH_RADIUS * 1.8, EARTH_RADIUS * 0.9, EARTH_RADIUS * 1.8),
+          ),
+        );
+        cam.setTarget(target);
         break;
       }
     }
   }
+
   dispose(): void {
     if (!this.enabled) return;
     window.removeEventListener('resize', this.onResize);
-    this.controls.dispose();
-
-    this.scene.traverse((object) => {
-      const mesh = object as THREE.Mesh;
-      mesh.geometry?.dispose();
-      const material = mesh.material;
-      if (Array.isArray(material)) material.forEach((m) => m.dispose());
-      else material?.dispose();
-    });
-    this.scene.clear();
-
-    this.renderer.dispose();
-    this.renderer.domElement.remove();
+    this.orbitCam.detachControl();
+    this.scene.dispose();
+    this.engine.dispose();
+    this.canvas.remove();
   }
 }

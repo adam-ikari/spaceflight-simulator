@@ -24,9 +24,9 @@ function boot(): void {
   // Designer pushes the current stack to the rigid body (constructor does the
   // first push with the default archetype).
   new RocketDesigner(el('designer'), (stages, payloadKg, config) => {
-    void stages;
     void payloadKg;
     director.setVehicle(config.escapeSystem, config.hasSolidBooster);
+    scene.setVehicle(stages, config);
   });
   new TelemetryPanel(el('telemetry')).render();
 
@@ -47,6 +47,7 @@ function boot(): void {
     last = now;
     gameLoop.tick(dt);
     const pos = director.positionKm();
+    scene.setPhase(director.phase);
     scene.setRocketPosition(pos);
     scene.addTrajectoryPoint(pos);
     scene.update(dt);
