@@ -7,7 +7,7 @@ const EARTH_RADIUS = 6371 * SCALE;
 const MAX_TRAJECTORY_POINTS = 8192;
 
 /** Camera view modes — which fixed/relative transform drives the camera. */
-export type ViewMode = 'orbit' | 'chase' | 'ground' | 'cockpit' | 'overview';
+export type ViewMode = 'orbit' | 'chase' | 'ground' | 'cockpit' | 'overview' | 'control';
 
 export class Scene {
   private readonly enabled = typeof window !== 'undefined' && typeof document !== 'undefined';
@@ -20,7 +20,7 @@ export class Scene {
   private readonly trajectory!: THREE.Line;
   private readonly trajectoryPositions!: Float32Array;
   private trajectoryCount = 0;
-  private view: ViewMode = 'orbit';
+  private view: ViewMode = 'control';
   private rocketPos = new THREE.Vector3(0, EARTH_RADIUS + 1.2, 0);
   private prevPos = new THREE.Vector3(0, EARTH_RADIUS + 1.2, 0);
   private velocity = new THREE.Vector3();
@@ -95,7 +95,7 @@ export class Scene {
   }
 
   /** Available camera views (Chinese labels in index.html). */
-  readonly views: ViewMode[] = ['orbit', 'chase', 'ground', 'cockpit', 'overview'];
+  readonly views: ViewMode[] = ['control', 'orbit', 'chase', 'ground', 'cockpit', 'overview'];
 
   /** Advance the active camera and render one frame. */
   update(dtSec: number): void {
@@ -164,6 +164,16 @@ export class Scene {
           this.velocity.lengthSq() > 1e-6 ? this.velocity.clone().normalize() : up.clone();
         this.camera.position.copy(this.rocketPos).addScaledVector(look, 1.5);
         this.camera.lookAt(this.rocketPos.clone().addScaledVector(look, 20));
+        break;
+      }
+      case 'control': {
+        // Launch-control vantage beside the pad (director pad is the +X surface).
+        this.camera.position.set(
+          EARTH_RADIUS * 1.001,
+          EARTH_RADIUS * 0.06,
+          EARTH_RADIUS * 0.03,
+        );
+        this.camera.lookAt(this.rocketPos);
         break;
       }
       case 'overview': {

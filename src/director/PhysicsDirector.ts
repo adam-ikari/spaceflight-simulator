@@ -141,6 +141,11 @@ export class PhysicsDirector {
     };
   }
 
+  /** Current vehicle position in km relative to Earth's centre (scene feed). */
+  positionKm(): [number, number, number] {
+    return [this.s.pos[0] / 1000, this.s.pos[1] / 1000, this.s.pos[2] / 1000];
+  }
+
   // --- internals ---------------------------------------------------------
 
   private radial(): { r: number; dir: Vec3; tan: Vec3 } {

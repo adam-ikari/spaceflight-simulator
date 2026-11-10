@@ -53,3 +53,4 @@ No file conflicts (each task distinct file). Global-constraint anchors present i
 - FINAL: tsc clean, 150/150 tests, vite build OK. All 16(+8 ext) tasks done.
 - ENHANCEMENT (post-MVP): vehicle-aware PLOC fix (director setVehicle) + Chinese UI + multi-camera views (DominantBeetle agent).
 - FIX: launch stuck at LIFTOFF — GameLoop.autoAdvance now drives ascent→orbit; warp time-accel (default 10x) + UI selector. Verified reaches ORBIT in browser.
+- FIX: static render — visuals now driven by director.positionKm() (single source); removed decoupled cannon RigidBodyAscent; added 指挥室/control view (default). Canvas region pixel-diff 4.84% confirms motion.

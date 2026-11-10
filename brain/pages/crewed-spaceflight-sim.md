@@ -5,7 +5,7 @@ category: decision
 status: active
 tags: [simulation, physics, rocket]
 created: "2026-11-09T23:28:13"
-updated: "2026-11-10T10:16:36"
+updated: "2026-11-10T11:08:51"
 ---
 
 <!-- compiled_truth -->
@@ -59,4 +59,10 @@ updated: "2026-11-10T10:16:36"
   kind: decision
   summary: "修复发射卡LIFTOFF: GameLoop新增autoAdvance(dt)按高度/Δv自动推进 LIFTOFF(3km)→ASCENT(120km)→STAGE_SEP(8s coast)→ORBIT_INSERT(Δv≤60)→ORBIT; 新增warp时间倍速(构造参数+setWarp+UI选择器, 默认10×). ORBIT后停住等待用户离轨决策. 回归测试验证到ORBIT."
   source: src/game/GameLoop.ts
+  affects: [crewed-spaceflight-sim]
+
+- time: 2026-11-10T11:08:51
+  kind: decision
+  summary: "修复画面不动的根因: 视觉原由RigidBodyAscent(cannon-es,实时dt)驱动,而director(warp 10-50x)自动推进阶段在~0.2s内关闭推力窗口,导致cannon物体几乎不动即下落. 改为单一事实源: main每帧用director.positionKm()驱动Scene.setRocketPosition/addTrajectoryPoint, 删除RigidBodyAscent(死代码). 新增指挥室视角(control,默认)."
+  source: "src/main.ts;src/render/Scene.ts"
   affects: [crewed-spaceflight-sim]
