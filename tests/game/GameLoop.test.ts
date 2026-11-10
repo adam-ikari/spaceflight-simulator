@@ -50,6 +50,14 @@ describe('GameLoop.tick', () => {
     expect(s.fuelPct).toBeLessThan(100);
     expect(s.ploc).toBeGreaterThan(0);
   });
+  it('auto-drives a launch through ascent to ORBIT', () => {
+    const d = new PhysicsDirector();
+    const loop = new GameLoop(d, 10);
+    loop.decide({ type: 'go' });
+    for (let i = 0; i < 400 && d.phase !== 'ORBIT'; i++) loop.tick(1);
+    expect(d.phase).toBe('ORBIT');
+    expect(store.get().phase).toBe('ORBIT');
+  });
 });
 
 describe('GameLoop.decide', () => {

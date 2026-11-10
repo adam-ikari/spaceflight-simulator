@@ -23,9 +23,27 @@ export interface Decision {
 export class GameLoop {
   private raf = 0;
   private last = 0;
+  /** Coarse-ascent auto-transition thresholds (DESIGN.md auto phase drive). */
+  private static readonly ASCENT_KM = 3;
+  private static readonly STAGE_SEP_KM = 120;
+  private static readonly SEP_COAST_S = 8;
+  private static readonly INSERT_DONE_MS = 60;
+  private sepClock = 0;
 
-  constructor(private readonly director: PhysicsDirector) {
+  /**
+   * @param warp physics-time acceleration factor; wall speedup of the sim.
+   *   1 = real time (~9 min to orbit); 10–20 keeps a launch watchable.
+   */
+  constructor(
+    private readonly director: PhysicsDirector,
+    private warp = 1,
+  ) {
     this.sync();
+  }
+
+  /** Change the physics-time acceleration factor at runtime. */
+  setWarp(warp: number): void {
+    this.warp = Math.max(1, warp);
   }
 
   start(): void {
@@ -44,10 +62,42 @@ export class GameLoop {
     this.raf = 0;
   }
 
-  /** One physics step; dt in seconds. */
+  /** One physics step; dt in seconds (wall). Warped before integration. */
   tick(dtSec: number): void {
-    this.director.step(dtSec);
+    const dt = Math.max(0, dtSec) * this.warp;
+    this.director.step(dt);
+    this.autoAdvance(dt);
     this.sync();
+  }
+
+  /**
+   * Drive the mission forward automatically once airborne: liftoff → ascent →
+   * stage sep → orbit insertion → orbit, from altitude and Δv state. Stops at
+   * ORBIT — deorbit and landing stay user decisions.
+   */
+  private autoAdvance(dt: number): void {
+    const d = this.director;
+    if (d.phase === 'PAD') return;
+    const { altitudeKm, dvRemainingMs } = d.telemetry();
+    if (d.phase !== 'STAGE_SEP') this.sepClock = 0;
+
+    switch (d.phase) {
+      case 'LIFTOFF':
+        if (altitudeKm >= GameLoop.ASCENT_KM) d.setPhase('ASCENT');
+        break;
+      case 'ASCENT':
+        if (altitudeKm >= GameLoop.STAGE_SEP_KM) d.setPhase('STAGE_SEP');
+        break;
+      case 'STAGE_SEP':
+        this.sepClock += dt;
+        if (this.sepClock >= GameLoop.SEP_COAST_S) d.setPhase('ORBIT_INSERT');
+        break;
+      case 'ORBIT_INSERT':
+        if (dvRemainingMs <= GameLoop.INSERT_DONE_MS) d.setPhase('ORBIT');
+        break;
+      default:
+        break;
+    }
   }
 
   decide(decision: Decision): void {

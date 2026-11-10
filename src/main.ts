@@ -20,7 +20,7 @@ function el(id: string): HTMLElement {
 function boot(): void {
   const scene = new Scene(el('scene'));
   const director = new PhysicsDirector();
-  const gameLoop = new GameLoop(director);
+  const gameLoop = new GameLoop(director, 10);
   const ascent = new RigidBodyAscent(scene, director);
 
   // Designer pushes the current stack to the rigid body (constructor does the
@@ -40,6 +40,10 @@ function boot(): void {
 
   const view = document.getElementById('view') as HTMLSelectElement | null;
   view?.addEventListener('change', () => scene.setView(view.value as ViewMode));
+
+  const warp = document.getElementById('warp') as HTMLSelectElement | null;
+  warp?.addEventListener('change', () => gameLoop.setWarp(Number(warp.value)));
+  if (warp) gameLoop.setWarp(Number(warp.value));
 
   let last = performance.now();
   const frame = (now: number): void => {

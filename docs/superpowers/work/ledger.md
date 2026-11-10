@@ -52,3 +52,4 @@ No file conflicts (each task distinct file). Global-constraint anchors present i
 - T16 Wire: 4ed25d8
 - FINAL: tsc clean, 150/150 tests, vite build OK. All 16(+8 ext) tasks done.
 - ENHANCEMENT (post-MVP): vehicle-aware PLOC fix (director setVehicle) + Chinese UI + multi-camera views (DominantBeetle agent).
+- FIX: launch stuck at LIFTOFF — GameLoop.autoAdvance now drives ascent→orbit; warp time-accel (default 10x) + UI selector. Verified reaches ORBIT in browser.

@@ -5,7 +5,7 @@ category: decision
 status: active
 tags: [simulation, physics, rocket]
 created: "2026-11-09T23:28:13"
-updated: "2026-11-10T08:09:53"
+updated: "2026-11-10T10:16:36"
 ---
 
 <!-- compiled_truth -->
@@ -53,4 +53,10 @@ updated: "2026-11-10T08:09:53"
   kind: decision
   summary: "三项UI/正确性增强: (1)修复PLOC接线根因——PhysicsDirector硬编码solidBoosterLit/escapeSystem='tower'导致固推与推进逃逸PLOC无差异; 改为setVehicle(escapeSystem,hasSolidBooster)喂入真实配置(Shuttle tower+固推 vs Falcon9 propulsive). (2)多视角相机: orbit/chase/ground/cockpit/overview. (3)UI中文化. Archetype新增escapeSystem字段."
   source: "src/director; src/ui"
+  affects: [crewed-spaceflight-sim]
+
+- time: 2026-11-10T10:16:36
+  kind: decision
+  summary: "修复发射卡LIFTOFF: GameLoop新增autoAdvance(dt)按高度/Δv自动推进 LIFTOFF(3km)→ASCENT(120km)→STAGE_SEP(8s coast)→ORBIT_INSERT(Δv≤60)→ORBIT; 新增warp时间倍速(构造参数+setWarp+UI选择器, 默认10×). ORBIT后停住等待用户离轨决策. 回归测试验证到ORBIT."
+  source: src/game/GameLoop.ts
   affects: [crewed-spaceflight-sim]
