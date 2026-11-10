@@ -547,6 +547,54 @@ export function stepLifeSupport(s: LifeSupportState, crew: number, dtSec: number
 
 ---
 
+### Task 10g: Weather (天气模拟)
+
+**Files:**
+- Create: `src/physics/Weather.ts`
+- Test: `tests/physics/Weather.test.ts`
+
+**Interfaces:**
+- Produces:
+```ts
+export interface WeatherState { groundWindMs: number; windShearPerKm: number; tempC: number; lightningRisk: number; cloudCeilingM: number; seaWaveM: number }
+export interface LaunchCommit { go: boolean; violations: string[] }
+export function evaluateLaunch(w: WeatherState): LaunchCommit
+export function windLoadMoment(w: WeatherState, altKm: number): number  // 上升结构弯矩贡献
+```
+- 阈值:地面阵风 >10 m/s、风切变 >30 m/s·km、tempC < -1(触发 O-ring 低温告警,喂 MaterialThermal)、lightningRisk >0.3、云底 <1000m、浪 >3m → 违反。
+- windLoadMoment:风载随高度积分贡献结构弯矩(喂 Structure 风险)。
+
+- [ ] **Step 1: 写失败测试** — 强风/低温/高闪电各触发 violation 且 go=false;windLoadMoment 单调随风速。
+- [ ] **Step 2-4:** TDD。
+- [ ] **Step 5: Commit** `feat: weather model + launch commit criteria`
+
+---
+
+### Task 10h: ConceptSchemes (新方案可行性验证)
+
+**Files:**
+- Create: `src/physics/ConceptSchemes.ts`
+- Test: `tests/physics/ConceptSchemes.test.ts`
+
+**Interfaces:**
+- Produces:
+```ts
+export type Feasibility = 'flyable' | 'researched' | 'concept' | 'infeasible'
+export interface ConceptScheme { id: string; name: string; ispS?: number; feasibility: Feasibility; bottleneck: string }
+export const CONCEPT_SCHEMES: ConceptScheme[]  // solar_sail/ntr_mars/fusion_direct/sabre/laser_launch/mass_driver/space_elevator/skyhook/antimatter
+export function tensileFeasibility(materialTensileGPa: number, taperRequired: number): Feasibility
+export function laserLaunchFeasibility(payloadKg: number, laserPowerGW: number): { dvMs: number; feasible: Feasibility }
+export function massDriverFeasibility(altitudeKm: number): Feasibility
+export function sailAcceleration(areaKm2: number, distanceAU: number, payloadKg: number): number  // m/s²
+```
+- 锚:太空电梯需 ~50 GPa;碳纳米管 ~63 GPa(理论);mass_driver@0km → infeasible;太阳帆加速度 ~9e-6·area/payload/distance²。
+
+- [ ] **Step 1: 写失败测试** — tensileFeasibility(63, 1.5)≠infeasible;massDriverFeasibility(0)=infeasible;sailAcceleration(1,1,1000)~9e-6。
+- [ ] **Step 2-4:** TDD。
+- [ ] **Step 5: Commit** `feat: concept schemes feasibility verification`
+
+---
+
 ### Task 11: PhysicsDirector 阶段状态机
 
 **Files:**

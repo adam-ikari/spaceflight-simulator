@@ -24,17 +24,17 @@ export class TelemetryPanel {
     if (typeof document === 'undefined') return;
     const decisions = s.decisions.length
       ? s.decisions.slice(-5).reverse().map((d) => `<li>${d}</li>`).join('')
-      : '<li style="color:#9aa0a6">none</li>';
+      : '<li style="color:#9aa0a6">无</li>';
     this.container.innerHTML = `
 <div style="${CARD_STYLE}">
-  <h2 style="margin:0 0 .5rem;font-size:15px">Telemetry</h2>
-  <div style="${ROW_STYLE}"><span>Phase</span><b>${s.phase}</b></div>
-  <div style="${ROW_STYLE}"><span>Time</span><b>${s.t.toFixed(1)} s</b></div>
-  <div style="${ROW_STYLE}"><span>PLOC</span><b>${(s.ploc * 100).toFixed(2)} %</b></div>
-  <div style="${ROW_STYLE}"><span>Cost</span><b>$${(s.costUsd / 1e6).toFixed(2)} M</b></div>
-  <div style="${ROW_STYLE}"><span>Fuel</span><b>${s.fuelPct.toFixed(1)} %</b></div>
-  <div style="${ROW_STYLE}"><span>Aborted</span><b style="color:${s.aborted ? '#c62828' : '#2e7d32'}">${s.aborted ? 'YES' : 'NO'}</b></div>
-  <div style="margin-top:.5rem">Recent decisions</div>
+  <h2 style="margin:0 0 .5rem;font-size:15px">遥测</h2>
+  <div style="${ROW_STYLE}"><span>阶段</span><b>${s.phase}</b></div>
+  <div style="${ROW_STYLE}"><span>时间</span><b>${s.t.toFixed(1)} s</b></div>
+  <div style="${ROW_STYLE}"><span>机组损失概率（PLOC）</span><b>${(s.ploc * 100).toFixed(2)} %</b></div>
+  <div style="${ROW_STYLE}"><span>成本</span><b>$${(s.costUsd / 1e6).toFixed(2)} M</b></div>
+  <div style="${ROW_STYLE}"><span>燃料</span><b>${s.fuelPct.toFixed(1)} %</b></div>
+  <div style="${ROW_STYLE}"><span>已中止</span><b style="color:${s.aborted ? '#c62828' : '#2e7d32'}">${s.aborted ? '是' : '否'}</b></div>
+  <div style="margin-top:.5rem">最近决策</div>
   <ul style="margin:.2rem 0 0;padding-left:1.1rem">${decisions}</ul>
 </div>`;
   }

@@ -6,6 +6,9 @@ const SCALE = 1 / 100;
 const EARTH_RADIUS = 6371 * SCALE;
 const MAX_TRAJECTORY_POINTS = 8192;
 
+/** Camera view modes — which fixed/relative transform drives the camera. */
+export type ViewMode = 'orbit' | 'chase' | 'ground' | 'cockpit' | 'overview';
+
 export class Scene {
   private readonly enabled = typeof window !== 'undefined' && typeof document !== 'undefined';
 
@@ -17,6 +20,10 @@ export class Scene {
   private readonly trajectory!: THREE.Line;
   private readonly trajectoryPositions!: Float32Array;
   private trajectoryCount = 0;
+  private view: ViewMode = 'orbit';
+  private rocketPos = new THREE.Vector3(0, EARTH_RADIUS + 1.2, 0);
+  private prevPos = new THREE.Vector3(0, EARTH_RADIUS + 1.2, 0);
+  private velocity = new THREE.Vector3();
   private readonly onResize = (): void => {
     const width = this.container.clientWidth || window.innerWidth;
     const height = this.container.clientHeight || window.innerHeight;
@@ -87,17 +94,26 @@ export class Scene {
     window.addEventListener('resize', this.onResize);
   }
 
-  /** Advance controls and render one frame. */
-  update(_dtSec: number): void {
+  /** Available camera views (Chinese labels in index.html). */
+  readonly views: ViewMode[] = ['orbit', 'chase', 'ground', 'cockpit', 'overview'];
+
+  /** Advance the active camera and render one frame. */
+  update(dtSec: number): void {
     if (!this.enabled) return;
-    this.controls.update();
+    this.applyView(dtSec);
     this.renderer.render(this.scene, this.camera);
   }
 
-  /** Position the rocket (input in km). */
+  /** Switch to a camera view mode. */
+  setView(mode: ViewMode): void {
+    this.view = mode;
+  }
+
+  /** Position the rocket (input in km) and remember it for view framing. */
   setRocketPosition(pos: [number, number, number]): void {
     if (!this.enabled) return;
     this.rocket.position.set(pos[0] * SCALE, pos[1] * SCALE, pos[2] * SCALE);
+    this.rocketPos.set(pos[0] * SCALE, pos[1] * SCALE, pos[2] * SCALE);
   }
 
   /** Append a point to the trajectory trail (input in km). */
@@ -114,6 +130,53 @@ export class Scene {
     this.trajectory.geometry.setDrawRange(0, this.trajectoryCount);
   }
 
+  /** Drive the camera from the current view mode and rocket position. */
+  private applyView(dtSec: number): void {
+    if (dtSec > 0) {
+      this.velocity.subVectors(this.rocketPos, this.prevPos).divideScalar(dtSec);
+    }
+    this.prevPos.copy(this.rocketPos);
+
+    this.controls.enabled = this.view === 'orbit';
+    if (this.view === 'orbit') {
+      this.controls.update();
+      return;
+    }
+
+    const up = new THREE.Vector3(0, 1, 0);
+    switch (this.view) {
+      case 'chase': {
+        // Follow from behind/above the rocket.
+        const offset = new THREE.Vector3(0, 4, 14);
+        this.camera.position.copy(this.rocketPos).add(offset);
+        this.camera.lookAt(this.rocketPos);
+        break;
+      }
+      case 'ground': {
+        // Fixed near the launch pad, looking up at the rocket.
+        this.camera.position.set(EARTH_RADIUS * 0.15, EARTH_RADIUS * 0.99, 0);
+        this.camera.lookAt(this.rocketPos);
+        break;
+      }
+      case 'cockpit': {
+        // At the rocket, looking along the velocity vector.
+        const look =
+          this.velocity.lengthSq() > 1e-6 ? this.velocity.clone().normalize() : up.clone();
+        this.camera.position.copy(this.rocketPos).addScaledVector(look, 1.5);
+        this.camera.lookAt(this.rocketPos.clone().addScaledVector(look, 20));
+        break;
+      }
+      case 'overview': {
+        // Far camera framing Earth + trajectory.
+        const dir = this.rocketPos.clone().normalize();
+        this.camera.position
+          .copy(dir.multiplyScalar(EARTH_RADIUS * 1.6))
+          .add(new THREE.Vector3(EARTH_RADIUS * 0.4, EARTH_RADIUS * 0.2, EARTH_RADIUS * 0.5));
+        this.camera.lookAt(0, EARTH_RADIUS * 0.5, 0);
+        break;
+      }
+    }
+  }
   dispose(): void {
     if (!this.enabled) return;
     window.removeEventListener('resize', this.onResize);

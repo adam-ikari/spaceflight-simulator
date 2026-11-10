@@ -14,6 +14,7 @@ export interface Archetype {
   era: string;
   category: 'engineering' | 'concept';
   feasibility: 'flyable' | 'researched' | 'concept' | 'infeasible';
+  escapeSystem: 'tower' | 'propulsive' | 'none';
   stages: StageSpec[];
   notes?: string;
 }
@@ -25,6 +26,7 @@ export const ARCHETYPES: Archetype[] = [
     era: '1967–1973',
     category: 'engineering',
     feasibility: 'flyable',
+    escapeSystem: 'tower',
     stages: [
       // S-IC: five F-1, LOX/RP-1, vac Isp ~304 s
       {
@@ -65,6 +67,7 @@ export const ARCHETYPES: Archetype[] = [
     era: '1966–present',
     category: 'engineering',
     feasibility: 'flyable',
+    escapeSystem: 'tower',
     stages: [
       // 4 × RD-107 strap-on boosters (aggregated)
       {
@@ -105,6 +108,7 @@ export const ARCHETYPES: Archetype[] = [
     era: '1981–2011',
     category: 'engineering',
     feasibility: 'flyable',
+    escapeSystem: 'tower',
     stages: [
       // 2 × SRB (solid HTPB), unfurlable once ignited
       {
@@ -137,6 +141,7 @@ export const ARCHETYPES: Archetype[] = [
     era: '2010–present',
     category: 'engineering',
     feasibility: 'flyable',
+    escapeSystem: 'propulsive',
     stages: [
       // 9 × Merlin 1D
       {
@@ -168,6 +173,7 @@ export const ARCHETYPES: Archetype[] = [
     era: '2023–present',
     category: 'engineering',
     feasibility: 'flyable',
+    escapeSystem: 'propulsive',
     stages: [
       // Super Heavy: 33 × Raptor
       {
@@ -199,6 +205,7 @@ export const ARCHETYPES: Archetype[] = [
     era: 'user-defined',
     category: 'engineering',
     feasibility: 'flyable',
+    escapeSystem: 'tower',
     stages: [
       {
         propellantId: 'LOX_CH4',
@@ -218,6 +225,7 @@ export const ARCHETYPES: Archetype[] = [
     era: '1961–1973 (research)',
     category: 'concept',
     feasibility: 'researched',
+    escapeSystem: 'none',
     stages: [
       // H2 propellant entered against the LH2 table entry as a density proxy;
       // reactor heating gives Isp ~900 s, far above the chemical table value.
@@ -239,6 +247,7 @@ export const ARCHETYPES: Archetype[] = [
     era: '1998–present',
     category: 'concept',
     feasibility: 'researched',
+    escapeSystem: 'none',
     stages: [],
     notes: 'Isp 3000–4000 s, thrust ~mN–N; deep-space only (Dawn flight-proven), no chemical branch.',
   },
@@ -248,6 +257,7 @@ export const ARCHETYPES: Archetype[] = [
     era: '2010–present',
     category: 'concept',
     feasibility: 'researched',
+    escapeSystem: 'none',
     stages: [],
     notes: 'Radiation pressure P = 2S/c; acceleration ~9 µPa/m² at 1 AU, demands very large area.',
   },
@@ -257,6 +267,7 @@ export const ARCHETYPES: Archetype[] = [
     era: '1958–1963 (research)',
     category: 'concept',
     feasibility: 'researched',
+    escapeSystem: 'none',
     stages: [],
     notes: 'Isp ~2000 s class via nuclear pulse units against a pusher plate; feasible in principle but untestable — atmospheric fallout and test-ban treaty.',
   },
@@ -266,6 +277,7 @@ export const ARCHETYPES: Archetype[] = [
     era: '1973–1978 (concept)',
     category: 'concept',
     feasibility: 'concept',
+    escapeSystem: 'none',
     stages: [],
     notes: 'Isp ~1e6 s; needs controlled fusion and helium-3 supply — no demonstrated physics path at engineering scale.',
   },
@@ -275,6 +287,7 @@ export const ARCHETYPES: Archetype[] = [
     era: 'science fiction',
     category: 'concept',
     feasibility: 'infeasible',
+    escapeSystem: 'none',
     stages: [],
     notes:
       'M_earth = 5.972e24 kg; a = 1e-5 m/s² needs F ≈ M·a ≈ 6e19 N. Exhaust at a very optimistic 10 km/s gives ṁ ≈ 6e15 kg/s → ~2e23 kg/yr, ~3% of Earth per year. Crust is only 2.6e22 kg → burns through in weeks; reaction mass is spent before any useful Δv. Infeasible.',

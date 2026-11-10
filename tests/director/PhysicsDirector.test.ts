@@ -145,3 +145,21 @@ describe('PhysicsDirector telemetry', () => {
     expect(t.speedMs).toBeLessThan(10);
   });
 });
+
+describe('PhysicsDirector vehicle-aware PLOC', () => {
+  it('reports higher lift-off PLOC for a lit solid booster than propulsive escape', () => {
+    const solid = new PhysicsDirector();
+    solid.setVehicle('tower', true);
+    solid.setPhase('LIFTOFF');
+    solid.step(1);
+    const solidPloc = solid.telemetry().ploc;
+
+    const propulsive = new PhysicsDirector();
+    propulsive.setVehicle('propulsive', false);
+    propulsive.setPhase('LIFTOFF');
+    propulsive.step(1);
+    const propPloc = propulsive.telemetry().ploc;
+
+    expect(propPloc).toBeLessThan(solidPloc);
+  });
+});

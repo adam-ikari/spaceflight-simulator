@@ -56,6 +56,8 @@ export class PhysicsDirector {
   private dvRemainingMs = ASCENT_DV_MS;
   private ploc = 0;
   private costUsd = 0;
+  private escapeSystem: 'tower' | 'propulsive' | 'none' = 'tower';
+  private hasSolidBooster = false;
 
   constructor() {
     this.update();
@@ -79,6 +81,13 @@ export class PhysicsDirector {
   advance(): void {
     const next = PHASE_ORDER[PHASE_ORDER.indexOf(this.p) + 1];
     if (next) this.setPhase(next);
+  }
+
+  /** Feed the actual vehicle config so computePLOC uses the right escape system. */
+  setVehicle(escapeSystem: 'tower' | 'propulsive' | 'none', hasSolidBooster: boolean): void {
+    this.escapeSystem = escapeSystem;
+    this.hasSolidBooster = hasSolidBooster;
+    this.update();
   }
 
   /** Aggregate one physics step for the current phase. */
@@ -227,10 +236,12 @@ export class PhysicsDirector {
     const phaseKey = this.p.toLowerCase();
 
     const { ploc } = computePLOC({
-      solidBoosterLit: this.p === 'LIFTOFF' || this.p === 'ASCENT',
+      solidBoosterLit:
+        this.hasSolidBooster &&
+        (this.p === 'LIFTOFF' || this.p === 'ASCENT' || this.p === 'STAGE_SEP'),
       mach: speed / 343,
       dynamicPressurePa: dynamicPressure(speed, altM),
-      escapeSystem: 'tower',
+      escapeSystem: this.escapeSystem,
       phase: phaseKey,
       crewed: true,
     });

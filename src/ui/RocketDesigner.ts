@@ -25,17 +25,22 @@ type StageNumberField =
   | 'thrustN'
   | 'propellantMassKg'
   | 'dryMassKg';
+export interface VehicleConfig {
+  escapeSystem: 'tower' | 'propulsive' | 'none';
+  hasSolidBooster: boolean;
+}
 
 export class RocketDesigner {
   private container: HTMLElement;
-  private onChange: (stages: StageSpec[], payloadKg: number) => void;
+  private onChange: (stages: StageSpec[], payloadKg: number, config: VehicleConfig) => void;
   private stages: StageSpec[] = [];
   private payloadKg = 10000;
   private preset = '';
+  private escapeSystem: 'tower' | 'propulsive' | 'none' = 'tower';
 
   constructor(
     container: HTMLElement,
-    onChange: (stages: StageSpec[], payloadKg: number) => void,
+    onChange: (stages: StageSpec[], payloadKg: number, config: VehicleConfig) => void,
   ) {
     this.container = container;
     this.onChange = onChange;
@@ -51,6 +56,7 @@ export class RocketDesigner {
     if (!a) return;
     this.preset = `arch:${a.id}`;
     this.stages = a.stages.map((s) => ({ ...s }));
+    this.escapeSystem = a.escapeSystem;
     this.render();
   }
 
@@ -58,11 +64,11 @@ export class RocketDesigner {
     if (typeof document === 'undefined') return;
     this.container.innerHTML = `
 <div style="${CARD_STYLE}">
-  <h2 style="margin:0 0 .6rem;font-size:15px">Rocket Designer</h2>
-  <label style="${FIELD_STYLE}">Preset
+  <h2 style="margin:0 0 .6rem;font-size:15px">火箭设计器</h2>
+  <label style="${FIELD_STYLE}">预设
     <select data-role="preset" style="${INPUT_STYLE}">${this.presetOptions()}</select>
   </label>
-  <label style="${FIELD_STYLE}">Payload (kg)
+  <label style="${FIELD_STYLE}">载荷（kg）
     <input data-role="payload" type="number" step="any" value="${this.payloadKg}" style="${INPUT_STYLE}">
   </label>
   ${this.stages.map((s, i) => this.stageMarkup(s, i)).join('')}
@@ -76,9 +82,9 @@ export class RocketDesigner {
     const opt = (value: string, label: string): string =>
       `<option value="${value}"${value === this.preset ? ' selected' : ''}>${label}</option>`;
     const groups = [
-      `<optgroup label="Archetypes">${ARCHETYPES.map((a) => opt(`arch:${a.id}`, a.name)).join('')}</optgroup>`,
-      `<optgroup label="Concepts">${CONCEPT_SCHEMES.map((c) => opt(`concept:${c.id}`, c.name)).join('')}</optgroup>`,
-      `<optgroup label="Missions">${MISSIONS.map((m) => opt(`mission:${m.id}`, `${m.name} (${m.agency})`)).join('')}</optgroup>`,
+      `<optgroup label="历史型号">${ARCHETYPES.map((a) => opt(`arch:${a.id}`, a.name)).join('')}</optgroup>`,
+      `<optgroup label="概念方案">${CONCEPT_SCHEMES.map((c) => opt(`concept:${c.id}`, c.name)).join('')}</optgroup>`,
+      `<optgroup label="任务">${MISSIONS.map((m) => opt(`mission:${m.id}`, `${m.name} (${m.agency})`)).join('')}</optgroup>`,
     ];
     return groups.join('');
   }
@@ -93,17 +99,17 @@ export class RocketDesigner {
       .join('');
     return `
 <fieldset data-stage="${i}" style="border:1px solid #3c4043;border-radius:4px;margin:.6rem 0;padding:.4rem .6rem">
-  <legend style="padding:0 .3rem">Stage ${i + 1}</legend>
-  <label style="${FIELD_STYLE}">Propellant
+  <legend style="padding:0 .3rem">第 ${i + 1} 级</legend>
+  <label style="${FIELD_STYLE}">推进剂
     <select data-field="propellantId" style="${INPUT_STYLE}">${propellants}</select>
   </label>
-  ${num('ofRatio', 'O/F ratio', s.ofRatio)}
-  ${num('pcMPa', 'Chamber pressure (MPa)', s.pcMPa)}
-  ${num('expansionRatio', 'Expansion ratio', s.expansionRatio)}
-  ${num('thrustN', 'Thrust (N)', s.thrustN)}
-  ${num('propellantMassKg', 'Propellant (kg)', s.propellantMassKg)}
-  ${num('dryMassKg', 'Dry mass (kg)', s.dryMassKg)}
-  <label style="${FIELD_STYLE}">Solid booster
+  ${num('ofRatio', '混合比 O/F', s.ofRatio)}
+  ${num('pcMPa', '室压（MPa）', s.pcMPa)}
+  ${num('expansionRatio', '膨胀比', s.expansionRatio)}
+  ${num('thrustN', '推力（N）', s.thrustN)}
+  ${num('propellantMassKg', '推进剂质量（kg）', s.propellantMassKg)}
+  ${num('dryMassKg', '干质量（kg）', s.dryMassKg)}
+  <label style="${FIELD_STYLE}">固体助推
     <input data-field="isSolid" type="checkbox"${s.isSolid ? ' checked' : ''}>
   </label>
 </fieldset>`;
@@ -131,6 +137,7 @@ export class RocketDesigner {
 
   private onPreset(value: string): void {
     this.preset = value;
+    this.escapeSystem = 'tower';
     const [kind, id] = value.split(':');
     if (kind === 'arch') {
       this.loadArchetype(id);
@@ -167,6 +174,7 @@ export class RocketDesigner {
     this.onChange(
       this.stages.map((s) => ({ ...s })),
       this.payloadKg,
+      { escapeSystem: this.escapeSystem, hasSolidBooster: this.stages.some((s) => s.isSolid) },
     );
   }
 
@@ -179,10 +187,16 @@ export class RocketDesigner {
           : concept.feasibility === 'concept'
             ? '#f9a825'
             : '#2e7d32';
+      const fz: Record<string, string> = {
+        flyable: '可飞',
+        researched: '已研究',
+        concept: '概念',
+        infeasible: '不可行',
+      };
       return `
-<div style="color:${color};font-weight:600">${concept.name} — ${concept.feasibility}</div>
+<div style="color:${color};font-weight:600">${concept.name} — ${fz[concept.feasibility] ?? concept.feasibility}</div>
 <div style="margin-top:.3rem;color:#bdc1c6">${concept.bottleneck}</div>
-<div style="margin-top:.3rem;color:#9aa0a6">Concept schemes carry no chemical stage stack; select an archetype or mission to edit stages.</div>`;
+<div style="margin-top:.3rem;color:#9aa0a6">概念方案无化学级结构；选择历史型号或任务以编辑分级参数。</div>`;
     }
 
     const g0 = CONST.G0;
@@ -203,17 +217,17 @@ export class RocketDesigner {
           expansionRatio: s.expansionRatio,
         });
         if (mf <= 0 || !Number.isFinite(m0)) {
-          computeErrors.push(`Stage ${i + 1}: propellant exceeds stack mass`);
+          computeErrors.push(`第 ${i + 1} 级：推进剂超过总质量`);
           return;
         }
         const dv = ispVac * g0 * Math.log(m0 / mf);
         const twr = s.thrustN / (m0 * g0);
         const name = PROPELLANTS[s.propellantId]?.name ?? s.propellantId;
         rows.push(
-          `<div>Stage ${i + 1} · ${name}${s.isSolid ? ' (solid)' : ''} · Isp ${ispVac.toFixed(1)} s · Δv ${(dv / 1000).toFixed(2)} km/s · TWR ${twr.toFixed(2)}</div>`,
+          `<div>第 ${i + 1} 级 · ${name}${s.isSolid ? '（固体）' : ''} · 比冲 ${ispVac.toFixed(1)} s · Δv ${(dv / 1000).toFixed(2)} km/s · 推重比 ${twr.toFixed(2)}</div>`,
         );
       } catch (err) {
-        computeErrors.push(`Stage ${i + 1}: ${err instanceof Error ? err.message : String(err)}`);
+        computeErrors.push(`第 ${i + 1} 级：${err instanceof Error ? err.message : String(err)}`);
       }
     });
 
@@ -229,12 +243,12 @@ export class RocketDesigner {
     const reachable = validation?.ok === true && (validation?.totalDv ?? 0) >= LEO_DV;
     const verdictColor = reachable ? '#2e7d32' : '#c62828';
     const verdict = reachable
-      ? 'LEO 9.4 km/s: REACHABLE'
-      : 'LEO 9.4 km/s: INSUFFICIENT';
+      ? '近地轨道 9.4 km/s：可达'
+      : '近地轨道 9.4 km/s：不可达';
 
     return `
 <div style="color:${verdictColor};font-weight:700">${verdict}</div>
-<div style="margin-top:.4rem">Total Δv: ${((validation?.totalDv ?? 0) / 1000).toFixed(2)} km/s</div>
+<div style="margin-top:.4rem">总 Δv: ${((validation?.totalDv ?? 0) / 1000).toFixed(2)} km/s</div>
 <div style="margin-top:.3rem">${rows.join('')}</div>
 ${warnings.length ? `<div style="margin-top:.4rem;color:#f9a825">${warnings.join('<br>')}</div>` : ''}
 ${errors.length ? `<div style="margin-top:.4rem;color:#c62828">${errors.join('<br>')}</div>` : ''}`;

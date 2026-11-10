@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="zh-CN">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -65,9 +65,18 @@
       </div>
     </div>
     <div id="controls">
-      <button id="launch" type="button">Launch</button>
-      <button id="abort" type="button">Abort</button>
-      <button id="deorbit" type="button">Deorbit</button>
+      <label for="view" style="display:flex;align-items:center;gap:.3rem">视角
+        <select id="view">
+          <option value="orbit">轨道视角</option>
+          <option value="chase">追尾视角</option>
+          <option value="ground">地面视角</option>
+          <option value="cockpit">舱内视角</option>
+          <option value="overview">总览视角</option>
+        </select>
+      </label>
+      <button id="launch" type="button">发射</button>
+      <button id="abort" type="button">中止</button>
+      <button id="deorbit" type="button">离轨</button>
     </div>
     <script type="module" src="/src/main.ts"></script>
   </body>

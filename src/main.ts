@@ -7,6 +7,7 @@ import { PhysicsDirector } from './director/PhysicsDirector';
 import { GameLoop } from './game/GameLoop';
 import { RigidBodyAscent } from './render/RigidBodyAscent';
 import { Scene } from './render/Scene';
+import type { ViewMode } from './render/Scene';
 import { RocketDesigner } from './ui/RocketDesigner';
 import { TelemetryPanel } from './ui/TelemetryPanel';
 
@@ -24,7 +25,10 @@ function boot(): void {
 
   // Designer pushes the current stack to the rigid body (constructor does the
   // first push with the default archetype).
-  new RocketDesigner(el('designer'), (stages, payloadKg) => ascent.init(stages, payloadKg));
+  new RocketDesigner(el('designer'), (stages, payloadKg, config) => {
+    ascent.init(stages, payloadKg);
+    director.setVehicle(config.escapeSystem, config.hasSolidBooster);
+  });
   new TelemetryPanel(el('telemetry')).render();
 
   el('launch').addEventListener('click', () => gameLoop.decide({ type: 'go' }));
@@ -33,6 +37,9 @@ function boot(): void {
     ascent.abort();
   });
   el('deorbit').addEventListener('click', () => gameLoop.decide({ type: 'deorbit' }));
+
+  const view = document.getElementById('view') as HTMLSelectElement | null;
+  view?.addEventListener('change', () => scene.setView(view.value as ViewMode));
 
   let last = performance.now();
   const frame = (now: number): void => {

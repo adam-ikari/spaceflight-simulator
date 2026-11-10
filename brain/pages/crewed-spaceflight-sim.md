@@ -5,7 +5,7 @@ category: decision
 status: active
 tags: [simulation, physics, rocket]
 created: "2026-11-09T23:28:13"
-updated: "2026-11-10T00:52:20"
+updated: "2026-11-10T08:09:53"
 ---
 
 <!-- compiled_truth -->
@@ -41,4 +41,16 @@ updated: "2026-11-10T00:52:20"
   kind: decision
   summary: "追加: 6f历史任务库(NASA Mercury/Gemini/Apollo/Skylab/STS/Hubble修复/SpaceX Demo-2;苏联 Vostok/Voskhod/Soyuz/Salyut礼炮号/Mir/Buran;中国神舟/天宫;ISS). 任务场景分类:发射入轨/空间站(交会对接驻留)/维修(Hubble EVA)/事故复现. 礼炮号:Salyut1+Soyuz11归途失压;Salyut7(1985)失电抢救对接. 计划增 Task10b ECLSS/10c MaterialThermal/10d Radiation/10e AccidentScenarios/10f MissionLibrary."
   source: DESIGN.md
+  affects: [crewed-spaceflight-sim]
+
+- time: 2026-11-10T01:48:14
+  kind: evidence
+  summary: "LEO首版实现完成: 17物理模块+director+scene+rigidbody+gameloop+UI+main端到端. 验证: tsc干净, 150/150测试绿, vite build成功. 物理锚已验: LOX/RP1 Isp 338.2s(330-350区间), 400km圆轨道7672m/s漂移<0.1%, Saturn V过9.4km/s校验, maxQ 22.5kPa, Challenger低温O-ring prob>常温, mass_driver地表不可行. 20次提交."
+  source: "git log; npm test"
+  affects: [crewed-spaceflight-sim]
+
+- time: 2026-11-10T08:09:53
+  kind: decision
+  summary: "三项UI/正确性增强: (1)修复PLOC接线根因——PhysicsDirector硬编码solidBoosterLit/escapeSystem='tower'导致固推与推进逃逸PLOC无差异; 改为setVehicle(escapeSystem,hasSolidBooster)喂入真实配置(Shuttle tower+固推 vs Falcon9 propulsive). (2)多视角相机: orbit/chase/ground/cockpit/overview. (3)UI中文化. Archetype新增escapeSystem字段."
+  source: "src/director; src/ui"
   affects: [crewed-spaceflight-sim]
