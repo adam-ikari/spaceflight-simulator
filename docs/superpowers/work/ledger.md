@@ -63,3 +63,4 @@ No file conflicts (each task distinct file). Global-constraint anchors present i
 - COMPONENT THERMAL + STRUCTURAL CORES (commit f4f2b20): `ComponentThermal.ts` (implicit lumped node, Sutton–Graves, ablation sink, series-resistance regen wall, boil-off) + `StructuralDynamics.ts` (pogo SDOF, first bending, Miles, Miner, over-limit probability). 200 tests green, tsc clean.
 - ANCHOR CORRECTION: 1 MW/m² with ε=0.85 radiates at 2130 K, not 3796 K. 3796 K requires 10 MW/m²; the carbon 3500 K limit is ≈7.2 MW/m². Earlier note in the pre-implementation summary was off by 10×; tests now pin the correct values.
 - NAME: repo and app renamed gotothemoon → FlightMargin (`adam-ikari/flightmargin`); Pages URL becomes https://adam-ikari.github.io/flightmargin/. README added with anchors and limits.
+- NAME (final): 显示名“航天模拟器”，仓库 `adam-ikari/spaceflight-simulator`；Pages https://adam-ikari.github.io/spaceflight-simulator/。FlightMargin/gotothemoon 均为临时名。

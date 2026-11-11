@@ -5,7 +5,7 @@ category: decision
 status: active
 tags: [simulation, physics, rocket]
 created: "2026-11-09T23:28:13"
-updated: "2026-11-11T12:19:05"
+updated: "2026-11-11T12:24:52"
 ---
 
 <!-- compiled_truth -->
@@ -83,4 +83,10 @@ updated: "2026-11-11T12:19:05"
   kind: decision
   summary: "项目更名为 FlightMargin（adam-ikari/flightmargin），Pages 新地址 https://adam-ikari.github.io/flightmargin/。原因：模拟器的产出是各部件余量（温度/振动离上限多远），旧名 gotothemoon 读起来像休闲游戏。里程碑：ComponentThermal.ts 与 StructuralDynamics.ts 已提交，200 测试通过；锚点更正——1 MW/m² ε=0.85 辐射平衡是 2130 K，3796 K 对应 10 MW/m²，碳 3500 K 上限约 7.2 MW/m²。"
   source: "rename + component modules commit f4f2b20"
+  affects: [crewed-spaceflight-sim]
+
+- time: 2026-11-11T12:24:52
+  kind: decision
+  summary: "最终名称：显示名「航天模拟器」，仓库 adam-ikari/spaceflight-simulator，Pages https://adam-ikari.github.io/spaceflight-simulator/。gotothemoon 与 FlightMargin 均为临时名，不再使用。"
+  source: "user: 就叫航天模拟器"
   affects: [crewed-spaceflight-sim]

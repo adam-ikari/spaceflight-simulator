@@ -1,10 +1,12 @@
-# FlightMargin
+# 航天模拟器
+
+> 英文仓库名：`spaceflight-simulator`。
 
 浏览器内的载人航天部件级推演模拟器。它回答一个问题：**给定这个飞行器设计和这条任务，真实实施会成功吗？**
 
 “余量”是这个模拟器的产出：发动机壁温离材料上限还有多少、贮箱每天蒸发多少推进剂、pogo 振动会不会超过机组耐受、热防护在再入热流下是否烧穿。每个数字都从物理量算出来，且能在测试里复算。
 
-在线运行：<https://adam-ikari.github.io/flightmargin/>
+在线运行：<https://adam-ikari.github.io/spaceflight-simulator/>
 
 ## 模拟了什么
 
@@ -58,4 +60,4 @@ pnpm build    # tsc + vite build
 
 ## 项目名
 
-旧名 `gotothemoon` 已改为 `FlightMargin`。GitHub 会重定向旧仓库地址；Pages 地址以 <https://adam-ikari.github.io/flightmargin/> 为准。
+仓库地址：<https://github.com/adam-ikari/spaceflight-simulator>。此前的 `gotothemoon`、`flightmargin` 都是临时名，GitHub 会重定向旧仓库地址；Pages 地址以 <https://adam-ikari.github.io/spaceflight-simulator/> 为准。
