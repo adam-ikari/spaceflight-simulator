@@ -37,7 +37,7 @@ export const PROPELLANTS: Record<string, Propellant> = {
     ispVacRange: [450, 465],
     tcK: 3580,
     mGmol: 8.9,
-    rhoOx: 70,
+    rhoOx: 1141,
     rhoF: 70,
     gamma: 1.2,
   },

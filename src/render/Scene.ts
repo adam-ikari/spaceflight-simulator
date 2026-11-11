@@ -241,8 +241,20 @@ export class Scene {
     // Pad tangent frame (pad sits on the +X surface).
     const padRadial = this.padPos.clone().normalize();
     const tan = B.Vector3.Cross(padRadial, UP).normalize();
-    const up = B.Vector3.Cross(tan, padRadial).normalize();
     const center = rp.add(dir.scale(h * 0.5));
+
+    // Point the camera "up" along the local vertical so the horizon sits level
+    // instead of glaringly rotated (the pad is on the +X equator). The local
+    // vertical is the radial direction; the pad plane is tangential.
+    const localUp = padRadial;
+    if (this.view === 'overview') {
+      cam.upVector.copyFrom(UP);
+    } else if (this.view === 'ground' || this.view === 'control') {
+      cam.upVector.copyFrom(localUp);
+    } else {
+      const radial = rp.clone().normalize();
+      cam.upVector.copyFrom(radial.lengthSquared() > 0.5 ? radial : UP);
+    }
 
     switch (this.view) {
       case 'chase': {
@@ -261,12 +273,13 @@ export class Scene {
         break;
       }
       case 'ground': {
-        // Fixed beside the pad, looking up at the rocket.
+        // Fixed beside the pad, looking up at the rocket. Altitude term is
+        // radial (local up), the lateral term tangential, so the surface sits
+        // at the bottom of the frame once upVector is set to the vertical.
         cam.position.copyFrom(
           this.padPos
             .add(tan.scale(h * 1.6))
-            .add(up.scale(h * 0.2))
-            .add(padRadial.scale(h * 0.15)),
+            .add(localUp.scale(h * 0.35)),
         );
         cam.setTarget(center);
         break;
@@ -282,8 +295,7 @@ export class Scene {
         cam.position.copyFrom(
           this.padPos
             .add(tan.scale(h * 1.2))
-            .add(up.scale(h * 0.5))
-            .add(padRadial.scale(h * 0.2)),
+            .add(localUp.scale(h * 0.5)),
         );
         cam.setTarget(center);
         break;

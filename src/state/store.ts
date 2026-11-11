@@ -3,6 +3,8 @@
 export interface GameState {
   phase: string;
   t: number;
+  altitudeKm: number;
+  speedMs: number;
   ploc: number;
   costUsd: number;
   fuelPct: number;
@@ -15,6 +17,8 @@ export type Listener = (s: GameState) => void;
 const INITIAL: GameState = {
   phase: 'PAD',
   t: 0,
+  altitudeKm: 0,
+  speedMs: 0,
   ploc: 0,
   costUsd: 0,
   fuelPct: 100,

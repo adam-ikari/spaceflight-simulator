@@ -140,6 +140,8 @@ export class GameLoop {
     store.set({
       phase: t.phase,
       t: t.t,
+      altitudeKm: t.altitudeKm,
+      speedMs: t.speedMs,
       ploc: t.ploc,
       costUsd: t.costUsd,
       fuelPct: t.fuelPct,

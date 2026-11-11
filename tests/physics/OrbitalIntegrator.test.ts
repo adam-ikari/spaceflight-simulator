@@ -54,4 +54,26 @@ describe('stepRK4 with J2', () => {
     const E1 = vFinal * vFinal / 2 - CONST.MU_EARTH / rFinal;
     expect(Math.abs((E1 - E0) / E0)).toBeLessThan(0.01);
   });
+
+  it('is step-size converged: one orbit at dt=10 s vs dt=0.5 s agree <0.01%', () => {
+    const r = CONST.R_EARTH + 400_000;
+    const v = circularOrbitVelocity(400_000);
+    const T = 2 * Math.PI * Math.sqrt(r ** 3 / CONST.MU_EARTH);
+
+    const run = (dt: number): OrbitState => {
+      let s: OrbitState = { pos: [r, 0, 0], vel: [0, v, 0], t: 0 };
+      const steps = Math.round(T / dt);
+      for (let i = 0; i < steps; i++) s = stepRK4(s, dt);
+      return s;
+    };
+
+    const coarse = run(10);
+    const fine = run(0.5);
+    const rC = Math.hypot(coarse.pos[0], coarse.pos[1], coarse.pos[2]);
+    const rF = Math.hypot(fine.pos[0], fine.pos[1], fine.pos[2]);
+    const vC = Math.hypot(coarse.vel[0], coarse.vel[1], coarse.vel[2]);
+    const vF = Math.hypot(fine.vel[0], fine.vel[1], fine.vel[2]);
+    expect(Math.abs(rC - rF) / rF).toBeLessThan(1e-4);
+    expect(Math.abs(vC - vF) / vF).toBeLessThan(1e-4);
+  });
 });

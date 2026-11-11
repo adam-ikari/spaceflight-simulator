@@ -2,11 +2,14 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import { PhysicsDirector } from '../../src/director/PhysicsDirector';
 import { GameLoop } from '../../src/game/GameLoop';
 import { store } from '../../src/state/store';
+import { circularOrbitVelocity } from '../../src/physics/OrbitalIntegrator';
 
 function resetStore(): void {
   store.set({
     phase: 'PAD',
     t: 0,
+    altitudeKm: 0,
+    speedMs: 0,
     ploc: 0,
     costUsd: 0,
     fuelPct: 100,
@@ -57,6 +60,18 @@ describe('GameLoop.tick', () => {
     for (let i = 0; i < 400 && d.phase !== 'ORBIT'; i++) loop.tick(1);
     expect(d.phase).toBe('ORBIT');
     expect(store.get().phase).toBe('ORBIT');
+  });
+
+  it('insertion speed matches local circular speed within 0.1% (plan Task 16)', () => {
+    const d = new PhysicsDirector();
+    const loop = new GameLoop(d, 10);
+    loop.decide({ type: 'go' });
+    for (let i = 0; i < 400 && d.phase !== 'ORBIT'; i++) loop.tick(1);
+
+    const s = store.get();
+    expect(s.altitudeKm).toBeGreaterThan(100);
+    const vc = circularOrbitVelocity(s.altitudeKm * 1000);
+    expect(Math.abs(s.speedMs - vc) / vc).toBeLessThan(0.001);
   });
 });
 

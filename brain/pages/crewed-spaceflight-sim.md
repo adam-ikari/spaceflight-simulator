@@ -5,7 +5,7 @@ category: decision
 status: active
 tags: [simulation, physics, rocket]
 created: "2026-11-09T23:28:13"
-updated: "2026-11-10T11:08:51"
+updated: "2026-11-11T11:51:30"
 ---
 
 <!-- compiled_truth -->
@@ -65,4 +65,16 @@ updated: "2026-11-10T11:08:51"
   kind: decision
   summary: "修复画面不动的根因: 视觉原由RigidBodyAscent(cannon-es,实时dt)驱动,而director(warp 10-50x)自动推进阶段在~0.2s内关闭推力窗口,导致cannon物体几乎不动即下落. 改为单一事实源: main每帧用director.positionKm()驱动Scene.setRocketPosition/addTrajectoryPoint, 删除RigidBodyAscent(死代码). 新增指挥室视角(control,默认)."
   source: "src/main.ts;src/render/Scene.ts"
+  affects: [crewed-spaceflight-sim]
+
+- time: 2026-11-10T11:43:43
+  kind: decision
+  summary: "渲染层从 Three.js 迁移到 Babylon.js(@babylonjs/core): 原生TS、ParticleSystem(GPU粒子)、GlowLayer(再入)、PBR、Inspector;物理/测试不动. 先做详细火箭模型(多级/喷管簇/级间环/逃逸塔/固体助推/尾翼). 保持Scene公开API(setView/setPhase/setRocketPosition/addTrajectoryPoint/update/setVehicle). 选Babylon理由: TS全栈契合+内置视觉工具链; 轨道物理仍自研RK4(引擎刚体物理对轨道无用)."
+  source: src/render
+  affects: [crewed-spaceflight-sim]
+
+- time: 2026-11-11T11:51:30
+  kind: decision
+  summary: "计划T16的『入轨速度误差<0.1%』拆成两条可验证命题: (1) 入轨瞬间速度=当地圆轨道速度, 误差0.00%(circularize构造, GameLoop测试断言<0.1%); (2) 长期漂移用步长收敛性证明: 同一400km圆轨道跑一整圈, dt=10s与dt=0.5s末态半径/速度差<0.01%, 说明RK4数值误差远小于阈值. 另测得J2使LEO瞬时速度围绕当地圆速度摆动0.144%, 且dt=0.5…30s不变, 属物理摄动而非积分误差, 因此遥测面板绿色阈值取0.2%."
+  source: "tests/game/GameLoop.test.ts;tests/physics/OrbitalIntegrator.test.ts;src/ui/TelemetryPanel.ts"
   affects: [crewed-spaceflight-sim]

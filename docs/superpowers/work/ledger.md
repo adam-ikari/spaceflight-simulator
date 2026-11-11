@@ -54,3 +54,9 @@ No file conflicts (each task distinct file). Global-constraint anchors present i
 - ENHANCEMENT (post-MVP): vehicle-aware PLOC fix (director setVehicle) + Chinese UI + multi-camera views (DominantBeetle agent).
 - FIX: launch stuck at LIFTOFF — GameLoop.autoAdvance now drives ascent→orbit; warp time-accel (default 10x) + UI selector. Verified reaches ORBIT in browser.
 - FIX: static render — visuals now driven by director.positionKm() (single source); removed decoupled cannon RigidBodyAscent; added 指挥室/control view (default). Canvas region pixel-diff 4.84% confirms motion.
+- RENDER: Three.js → Babylon.js 9.35 (commit 586c1b1). Verified in headless Chromium: WebGL2 context, no page errors, screenshots show Earth/rocket/plume/trajectory across PAD → ASCENT → ORBIT.
+- T16 GAP CLOSED: store + telemetry now carry altitudeKm/speedMs and show 圆轨道速度 + 速度偏差 (sqrt(μ/r) comparison).
+  Acceptance split in two: insertion speed error 0.00% (asserted <0.1%); long-term RK4 quality via step-size convergence (dt 10 s vs 0.5 s, one orbit, <0.01%). Measured J2 wobble on instantaneous speed = 0.144% independent of dt (0.5…30 s) → physical, not integrator error; UI green band is 0.2%.
+- ROCKET PROPORTIONS: geometry moved to src/render/vehicleGeometry.ts — stage tank volume = propellant mass / bulk density at the mixture ratio, stack fineness 10:1, one uniform exaggeration factor (4) for visibility. Fixed LOX_LH2 rhoOx 70 → 1141 (LH2 stages were absurdly long). Solid first stage renders as a side-booster pair (Shuttle layout) instead of an inline cylinder; booster length capped at 0.96× core body.
+- CAMERA: pad-relative views now use the local vertical as upVector (horizon level, rocket upright instead of sideways).
+- TESTS: 164/164 green; tsc clean; vite build OK.

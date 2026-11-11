@@ -1,13 +1,21 @@
 /**
  * Parametric rocket builder (Babylon.js): turns the selected stage stack into a
  * detailed TransformNode (multi-stage bodies, interstage rings, nozzle
- * clusters, fairing, fins, strap-on solids, launch-escape tower). Proportions
- * derive from stage masses so heavier vehicles read as bigger. Origin sits at
- * the pad (bottom of stage 1); the stack extends along +Y so the parent node
- * can align local +Y with the velocity vector.
+ * clusters, fairing, fins, strap-on solids, launch-escape tower).
+ *
+ * All proportions come from `vehicleGeometry` (propellant volume + fineness
+ * ratio), so the mesh matches the physics data instead of hand-tuned sizes.
+ * Origin sits at the pad (bottom of stage 1); the stack extends along +Y so the
+ * parent node can align local +Y with the velocity vector.
  */
 import * as B from '@babylonjs/core';
 import type { StageSpec } from '../physics/RocketEquation';
+import {
+  NOSE_RADIUS_RATIO,
+  computeVehicleGeometry,
+  engineCount,
+  splitStack,
+} from './vehicleGeometry';
 
 export interface RocketModel {
   root: B.TransformNode;
@@ -60,9 +68,11 @@ export function buildRocketModel(
   const root = new B.TransformNode('vehicle', scene);
   const mats = buildMaterials(scene);
 
-  const masses = stages.map((s) => Math.max(1, s.dryMassKg + s.propellantMassKg));
-  const total = masses.reduce((a, b) => a + b, 0) || 1;
-  const radius = Math.min(0.9, Math.max(0.32, 0.28 + 0.5 * (total / 3e6) ** 0.25));
+  const { core } = splitStack(stages, features.hasSolidBooster);
+  const stack = core.length > 0 ? core : stages;
+  const geo = computeVehicleGeometry(stages, features.hasSolidBooster);
+  const radius = geo.radius;
+  const hasStrapOn = geo.strapOn !== null;
 
   const add = <T extends B.Mesh>(mesh: T, x: number, y: number, z: number): T => {
     mesh.parent = root;
@@ -72,8 +82,9 @@ export function buildRocketModel(
   };
 
   let y = 0;
-  stages.forEach((_, i) => {
-    const h = 0.5 + 1.9 * (masses[i] / total);
+  stack.forEach((stage, i) => {
+    const h = geo.stageHeights[i] ?? 0;
+    const isFirst = i === 0;
 
     // Body.
     const body = add(
@@ -92,7 +103,7 @@ export function buildRocketModel(
     const ring = add(
       B.MeshBuilder.CreateCylinder(
         `ring${i}`,
-        { height: 0.06, diameter: radius * 2.08, tessellation: 24 },
+        { height: Math.min(0.06, h * 0.04), diameter: radius * 2.08, tessellation: 24 },
         scene,
       ),
       0,
@@ -101,9 +112,10 @@ export function buildRocketModel(
     );
     ring.material = mats.ring;
 
-    // Engine bell cluster at the bottom.
-    const n = Math.max(1, Math.round(radius * 5));
-    const rr = radius * 0.22;
+    // Engine bell cluster at the bottom, count from thrust per engine.
+    const n = engineCount(stage);
+    const rr = radius * (n === 1 ? 0.3 : 0.2);
+    const cluster = n === 1 ? 0 : n > 4 ? radius * 0.5 : radius * 0.42;
     for (let k = 0; k < n; k++) {
       const a = (k / n) * Math.PI * 2;
       const bell = add(
@@ -118,28 +130,30 @@ export function buildRocketModel(
           },
           scene,
         ),
-        Math.cos(a) * radius * 0.5,
+        Math.cos(a) * cluster,
         y - rr * 0.9,
-        Math.sin(a) * radius * 0.5,
+        Math.sin(a) * cluster,
       );
       bell.material = mats.bell;
     }
 
-    // Only the first (bottom) stage carries fins.
-    if (i === 0) {
+    // Only the first (bottom) stage carries fins: thin radial plates around the
+    // base, each rotated so its long axis points away from the body.
+    if (isFirst && !hasStrapOn) {
+      const finLen = radius * 0.8;
       for (let k = 0; k < 4; k++) {
         const a = (k / 4) * Math.PI * 2;
         const fin = add(
           B.MeshBuilder.CreateBox(
             `fin${k}`,
-            { width: 0.06, height: h * 0.5, depth: radius * 1.3 },
+            { width: finLen, height: h * 0.3, depth: 0.05 },
             scene,
           ),
-          Math.cos(a) * radius,
-          y + h * 0.35,
-          Math.sin(a) * radius,
+          Math.cos(a) * (radius + finLen * 0.5),
+          y + h * 0.15,
+          Math.sin(a) * (radius + finLen * 0.5),
         );
-        fin.rotation.y = a;
+        fin.rotation.y = -a;
         fin.material = mats.ring;
       }
     }
@@ -147,7 +161,7 @@ export function buildRocketModel(
   });
 
   // Payload fairing / nose cone.
-  const noseH = radius * 2.4;
+  const noseH = radius * NOSE_RADIUS_RATIO;
   const nose = add(
     B.MeshBuilder.CreateCylinder(
       'nose',
@@ -161,46 +175,51 @@ export function buildRocketModel(
   nose.material = mats.body;
   y += noseH;
 
-  // Launch-escape tower.
-  if (features.escapeSystem === 'tower') {
+  // Launch-escape tower (a slender mast plus escape-motor tip). Vehicles with
+  // side-mounted solids (Shuttle) never had a tower.
+  if (features.escapeSystem === 'tower' && !hasStrapOn) {
+    const mastH = radius * 1.8;
     const mast = add(
       B.MeshBuilder.CreateCylinder(
         'towerMast',
-        { height: radius * 2.2, diameter: radius * 0.32, tessellation: 12 },
+        { height: mastH, diameter: radius * 0.26, tessellation: 12 },
         scene,
       ),
       0,
-      y + radius * 1.1,
+      y + mastH / 2,
       0,
     );
     mast.material = mats.ring;
 
+    const tipH = radius * 0.7;
     const tip = add(
       B.MeshBuilder.CreateCylinder(
         'towerTip',
-        { height: radius * 0.9, diameterTop: 0, diameterBottom: radius * 0.6, tessellation: 12 },
+        { height: tipH, diameterTop: 0, diameterBottom: radius * 0.5, tessellation: 12 },
         scene,
       ),
       0,
-      y + radius * 2.2 + radius * 0.45,
+      y + mastH + tipH / 2,
       0,
     );
     tip.material = mats.dark;
-    y += radius * 3.2;
+    y += mastH + tipH;
   }
 
-  // Strap-on solid boosters.
-  if (features.hasSolidBooster && stages.length > 0) {
-    const bh = 0.6 + 1.9 * (masses[0] / total);
+  // Strap-on solid boosters: a symmetric pair beside stage 1. Their length
+  // follows from the solid stage's propellant volume, so a 500 t SRB reads much
+  // longer than a small helper motor.
+  const strap = geo.strapOn;
+  if (strap) {
     for (const side of [-1, 1]) {
       const booster = add(
         B.MeshBuilder.CreateCylinder(
           `booster${side}`,
-          { height: bh, diameter: radius * 0.8, tessellation: 16 },
+          { height: strap.height, diameter: strap.radius * 2, tessellation: 18 },
           scene,
         ),
-        side * radius * 1.35,
-        bh / 2,
+        side * strap.offset,
+        strap.height / 2,
         0,
       );
       booster.material = mats.body;
@@ -208,16 +227,39 @@ export function buildRocketModel(
       const bn = add(
         B.MeshBuilder.CreateCylinder(
           `boosterNose${side}`,
-          { height: radius * 0.6, diameterTop: 0, diameterBottom: radius * 0.56, tessellation: 16 },
+          {
+            height: strap.radius * 2.2,
+            diameterTop: 0,
+            diameterBottom: strap.radius * 2,
+            tessellation: 18,
+          },
           scene,
         ),
-        side * radius * 1.35,
-        -radius * 0.3,
+        side * strap.offset,
+        strap.height + strap.radius * 1.1,
         0,
       );
-      bn.rotation.x = Math.PI;
       bn.material = mats.dark;
+
+      const bb = add(
+        B.MeshBuilder.CreateCylinder(
+          `boosterBell${side}`,
+          {
+            height: strap.radius * 1.4,
+            diameterTop: strap.radius * 1.0,
+            diameterBottom: strap.radius * 1.8,
+            tessellation: 12,
+            cap: B.Mesh.NO_CAP,
+          },
+          scene,
+        ),
+        side * strap.offset,
+        -strap.radius * 0.7,
+        0,
+      );
+      bb.material = mats.bell;
     }
+    y = Math.max(y, strap.height + strap.radius * 2.2);
   }
 
   return { root, height: y, radius };
