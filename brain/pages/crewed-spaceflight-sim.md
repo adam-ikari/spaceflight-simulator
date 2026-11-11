@@ -5,7 +5,7 @@ category: decision
 status: active
 tags: [simulation, physics, rocket]
 created: "2026-11-09T23:28:13"
-updated: "2026-11-11T11:51:30"
+updated: "2026-11-11T12:19:05"
 ---
 
 <!-- compiled_truth -->
@@ -77,4 +77,10 @@ updated: "2026-11-11T11:51:30"
   kind: decision
   summary: "计划T16的『入轨速度误差<0.1%』拆成两条可验证命题: (1) 入轨瞬间速度=当地圆轨道速度, 误差0.00%(circularize构造, GameLoop测试断言<0.1%); (2) 长期漂移用步长收敛性证明: 同一400km圆轨道跑一整圈, dt=10s与dt=0.5s末态半径/速度差<0.01%, 说明RK4数值误差远小于阈值. 另测得J2使LEO瞬时速度围绕当地圆速度摆动0.144%, 且dt=0.5…30s不变, 属物理摄动而非积分误差, 因此遥测面板绿色阈值取0.2%."
   source: "tests/game/GameLoop.test.ts;tests/physics/OrbitalIntegrator.test.ts;src/ui/TelemetryPanel.ts"
+  affects: [crewed-spaceflight-sim]
+
+- time: 2026-11-11T12:19:05
+  kind: decision
+  summary: "项目更名为 FlightMargin（adam-ikari/flightmargin），Pages 新地址 https://adam-ikari.github.io/flightmargin/。原因：模拟器的产出是各部件余量（温度/振动离上限多远），旧名 gotothemoon 读起来像休闲游戏。里程碑：ComponentThermal.ts 与 StructuralDynamics.ts 已提交，200 测试通过；锚点更正——1 MW/m² ε=0.85 辐射平衡是 2130 K，3796 K 对应 10 MW/m²，碳 3500 K 上限约 7.2 MW/m²。"
+  source: "rename + component modules commit f4f2b20"
   affects: [crewed-spaceflight-sim]
