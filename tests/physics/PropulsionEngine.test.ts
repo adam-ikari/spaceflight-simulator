@@ -27,4 +27,15 @@ describe('PropulsionEngine LOX/RP-1', () => {
   it('specific thrust (F/ṁ) equals Isp_vac · g0', () => {
     expect(r.thrustPerMdot).toBeCloseTo(r.ispVac * 9.80665, 3);
   });
+
+  it('off-optimal O/F costs Isp (mixture-ratio penalty)', () => {
+    const opt = computeEngine({ propellantId: 'LOX_RP1', ofRatio: 2.3, pcMPa: 7, expansionRatio: 16 });
+    const lean = computeEngine({ propellantId: 'LOX_RP1', ofRatio: 4.0, pcMPa: 7, expansionRatio: 16 });
+    const rich = computeEngine({ propellantId: 'LOX_RP1', ofRatio: 1.5, pcMPa: 7, expansionRatio: 16 });
+
+    expect(lean.ispVac).toBeLessThan(opt.ispVac * 0.95);
+    expect(rich.ispVac).toBeLessThan(opt.ispVac * 0.95);
+    expect(lean.reactedFraction).toBeLessThan(1);
+    expect(opt.tcK).toBeCloseTo(3550, 6);
+  });
 });

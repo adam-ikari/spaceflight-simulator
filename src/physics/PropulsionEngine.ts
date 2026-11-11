@@ -25,6 +25,7 @@
  */
 import { CONST } from './constants';
 import { PROPELLANTS } from './propellants';
+import { combustionState } from './CombustionChemistry';
 
 export interface CombustionInput {
   propellantId: string;
@@ -40,6 +41,12 @@ export interface EnginePerf {
   ispVac: number;
   ispSl: number;
   thrustPerMdot: number;
+  /** Chamber temperature actually used (mixture-ratio dependent), K. */
+  tcK: number;
+  /** Mean molecular weight actually used, kg/kmol. */
+  mGmol: number;
+  /** Fraction of the stoichiometric reaction achieved, 0..1. */
+  reactedFraction: number;
 }
 
 const PA_SEA_MPA = 0.101325;
@@ -87,14 +94,18 @@ export function computeEngine(inp: CombustionInput): EnginePerf {
     throw new Error(`Unknown propellant: ${inp.propellantId}`);
   }
 
-  const gammaC = p.gamma;
+  // Mixture ratio moves chamber temperature and molecular weight off the
+  // measured optimum (see CombustionChemistry).
+  const mix = combustionState(inp.propellantId, inp.ofRatio);
+
+  const gammaC = mix.gamma;
   const gammaE = 1 + (gammaC - 1) / 2; // mean exhaust γ over the expansion
 
   // Characteristic velocity from chamber conditions (γ_c).
-  const r = CONST.RU / p.mGmol; // specific gas constant, J/(kg·K)
+  const r = CONST.RU / mix.mGmol; // specific gas constant, J/(kg·K)
   const gammaTerm = Math.pow(2 / (gammaC + 1), (gammaC + 1) / (gammaC - 1));
   const cstar =
-    Math.sqrt(gammaC * r * p.tcK) / (gammaC * Math.sqrt(gammaTerm));
+    Math.sqrt(gammaC * r * mix.tcK) / (gammaC * Math.sqrt(gammaTerm));
 
   // Nozzle thrust coefficient at vacuum and at ambient.
   const cfVac = thrustCoeff(inp.expansionRatio, gammaE, inp.pcMPa, 0).cf;
@@ -110,5 +121,8 @@ export function computeEngine(inp: CombustionInput): EnginePerf {
     ispVac,
     ispSl,
     thrustPerMdot: cstar * cfVac,
+    tcK: mix.tcK,
+    mGmol: mix.mGmol,
+    reactedFraction: mix.reactedFraction,
   };
 }
