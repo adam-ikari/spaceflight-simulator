@@ -220,6 +220,40 @@ export function regenerativeWall(inp: RegenWallInput): RegenWallResult {
 }
 
 /**
+ * Radiation-cooled chamber wall — no coolant-side path.
+ *
+ * With no regenerative coolant the gas-side convective flux has to leave by
+ * radiation from the wall:
+ *
+ *     h_g·(T_aw − T_w) = ε·σ·(T_w⁴ − T_sink⁴)
+ *
+ * The balance is monotone in T_w, so bisection is exact to machine precision.
+ * At LOX/RP-1 chamber conditions this lands near 3000 K — above every copper
+ * liner limit — which is why regenerative or film cooling is mandatory.
+ */
+export function radiationCooledWallK(
+  tAdiabaticK: number,
+  gasHWm2K: number,
+  emissivity = 0.35,
+  sinkK = SPACE_SINK_K,
+): number {
+  if (emissivity <= 0) throw new Error('emissivity must be positive');
+  const tAw = Math.max(1, tAdiabaticK);
+  const h = Math.max(0, gasHWm2K);
+  const sink4 = Math.pow(Math.max(0, sinkK), 4);
+  let lo = 1;
+  let hi = tAw;
+  for (let i = 0; i < 100; i++) {
+    const mid = 0.5 * (lo + hi);
+    const qIn = h * (tAw - mid);
+    const qOut = emissivity * SIGMA * (Math.pow(mid, 4) - sink4);
+    if (qOut < qIn) lo = mid;
+    else hi = mid;
+  }
+  return 0.5 * (lo + hi);
+}
+
+/**
  * Advance one thermal node by `dtSec` and return its new temperature.
  * Pure: the caller owns the node state.
  */

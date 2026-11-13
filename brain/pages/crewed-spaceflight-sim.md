@@ -5,7 +5,7 @@ category: decision
 status: active
 tags: [simulation, physics, rocket]
 created: "2026-11-09T23:28:13"
-updated: "2026-11-11T12:24:52"
+updated: "2026-11-13T08:25:22"
 ---
 
 <!-- compiled_truth -->
@@ -89,4 +89,10 @@ updated: "2026-11-11T12:24:52"
   kind: decision
   summary: "最终名称：显示名「航天模拟器」，仓库 adam-ikari/spaceflight-simulator，Pages https://adam-ikari.github.io/spaceflight-simulator/。gotothemoon 与 FlightMargin 均为临时名，不再使用。"
   source: "user: 就叫航天模拟器"
+  affects: [crewed-spaceflight-sim]
+
+- time: 2026-11-13T08:25:22
+  kind: decision
+  summary: "LEVEL 1 关卡契约定稿: 200 km LEO / 10 t / $400M 一次性 / PLOC ≤ 1/270 / 15 min; 允许 LOX-RP1、LOX-CH4、LOX-LH2、NTO-MMH, 级数上限 3. validateLevelDesign 输出具体物理量: Δv 缺口 m/s、Isp 包线、起飞/上级 TWR、燃烧室壁温、PLOC、总成本. 参考两级 LOX/RP1 设计总 Δv 9406 m/s, 仅余 6 m/s; 混合比偏离最优 5% 只损 Isp 0.09%(约 8 m/s) 即低于门槛. 无再生冷却壁温 3040 K > 1000 K."
+  source: "src/game/levels.ts; tests/game/level1.test.ts"
   affects: [crewed-spaceflight-sim]

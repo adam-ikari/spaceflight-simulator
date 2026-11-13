@@ -17,6 +17,12 @@ export interface StageSpec {
   dryMassKg: number;
   thrustN: number;
   isSolid?: boolean;
+  /**
+   * Regenerative chamber/nozzle cooling. Default true; false means the chamber
+   * is radiation-cooled, which the wall-temperature screen rejects for any
+   * chemical stage at flight chamber pressure.
+   */
+  regenerativeCooling?: boolean;
 }
 
 export interface StagePerf {

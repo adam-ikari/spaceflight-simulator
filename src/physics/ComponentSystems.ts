@@ -35,6 +35,7 @@ import {
   boiloffRateKgS,
   coolantSideH,
   engineGasSideH,
+  radiationCooledWallK,
   radiativeEquilibriumTemp,
   regenerativeWall,
   stepThermalNode,
@@ -76,6 +77,10 @@ const PROPELLANT_TEMP_K: Record<string, number> = {
 /** Engine liner: 1.5 mm copper alloy. */
 const LINER_THICKNESS_M = 0.0015;
 const LINER_K_WMK = 400;
+/** Copper chamber service limit, K. */
+export const CHAMBER_LIMIT_K = 1000;
+/** Radiation-cooled chamber wall emissivity. */
+const CHAMBER_EMISSIVITY = 0.35;
 /** Acoustic random-vibration PSD by phase, g²/Hz (measured order). */
 const RANDOM_PSD_BY_PHASE: Record<string, number> = {
   liftoff: 0.04,
@@ -163,6 +168,56 @@ function ambientConvection(speedMs: number, altitudeKm: number): number {
 const tankLabel = (i: number): string => `S${i + 1} 贮箱`;
 const chamberLabel = (i: number): string => `S${i + 1} 发动机壁`;
 const nozzleLabel = (i: number): string => `S${i + 1} 喷管`;
+
+/** Coolant inlet temperature by propellant (fuel side). */
+function coolantTemperatureK(propellantId: string): number {
+  return propellantId === 'LOX_RP1' ? 300 : PROPELLANT_TEMP_K[propellantId] ?? 293;
+}
+
+/**
+ * Quasi-steady chamber-wall temperature for one stage at a given thrust.
+ *
+ * Regenerative cooling solves the gas film → copper liner → coolant film
+ * series. When a design omits regenerative cooling (`regenerativeCooling ===
+ * false`) the wall has only radiation to space. Both branches are shared with
+ * the level feasibility screen so the design-time verdict and the live model
+ * cannot diverge.
+ */
+export function chamberWallTemperature(
+  stage: StageSpec,
+  thrustN: number,
+): { wallHotK: number; heatFluxWm2: number } {
+  const engine = computeEngine({
+    propellantId: stage.propellantId,
+    ofRatio: stage.ofRatio,
+    pcMPa: stage.pcMPa,
+    expansionRatio: stage.expansionRatio,
+  });
+  const engines = engineCount(stage);
+  const mdot = engine.ispVac > 0 ? Math.max(0, thrustN) / (engine.ispVac * 9.80665) : 0;
+  const gasH = engineGasSideH({
+    pcMPa: stage.pcMPa,
+    throatDiameterM: 0.2,
+    cstar: engine.cstar,
+    gamma: 1.2,
+  });
+  const tAdiabaticK = 0.9 * engine.tcK;
+
+  if (stage.regenerativeCooling === false) {
+    const wallHotK = radiationCooledWallK(tAdiabaticK, gasH, CHAMBER_EMISSIVITY);
+    return { wallHotK, heatFluxWm2: gasH * (tAdiabaticK - wallHotK) };
+  }
+
+  const wall = regenerativeWall({
+    tAdiabaticK,
+    tCoolantK: Math.min(coolantTemperatureK(stage.propellantId), 300),
+    gasHWm2K: gasH,
+    linerThicknessM: LINER_THICKNESS_M,
+    linerKWmK: LINER_K_WMK,
+    coolantHWm2K: coolantSideH(mdot / Math.max(1, engines)),
+  });
+  return { wallHotK: wall.wallHotK, heatFluxWm2: wall.heatFluxWm2 };
+}
 
 export class ComponentSystems {
   private readonly stages: StageSpec[];
@@ -265,7 +320,7 @@ export class ComponentSystems {
         emissivity: 0.35,
         absorptivity: 0.5,
         tempK: 300,
-        maxTempK: 1000,
+        maxTempK: CHAMBER_LIMIT_K,
         minTempK: 150,
         internalW: 0,
       };
@@ -373,36 +428,7 @@ export class ComponentSystems {
     // the steady solution rather than a bypass of the physics.
     if (state.powered && state.stageIndex >= 0 && state.stageIndex < this.stages.length) {
       const stage = this.stages[state.stageIndex];
-      const engine = computeEngine({
-        propellantId: stage.propellantId,
-        ofRatio: stage.ofRatio,
-        pcMPa: stage.pcMPa,
-        expansionRatio: stage.expansionRatio,
-      });
-      const engines = engineCount(stage);
-      const mdot = engine.ispVac > 0 ? state.thrustN / (engine.ispVac * 9.80665) : 0;
-      const gasH = engineGasSideH({
-        pcMPa: stage.pcMPa,
-        throatDiameterM: 0.2,
-        cstar: engine.cstar,
-        gamma: 1.2,
-      });
-      const coolH = coolantSideH(mdot / Math.max(1, engines));
-      // The chamber coolant is the fuel side: RP-1 enters near 300 K, cryogens
-      // near their storage temperature. LOX is the oxidiser, not the coolant.
-      const coolant =
-        stage.propellantId === 'LOX_RP1'
-          ? 300
-          : PROPELLANT_TEMP_K[stage.propellantId] ?? 293;
-      const wall = regenerativeWall({
-        // Turbulent boundary layer: adiabatic wall ≈ 0.9 × chamber temperature.
-        tAdiabaticK: 0.9 * engine.tcK,
-        tCoolantK: Math.min(coolant, 300),
-        gasHWm2K: gasH,
-        linerThicknessM: LINER_THICKNESS_M,
-        linerKWmK: LINER_K_WMK,
-        coolantHWm2K: coolH,
-      });
+      const wall = chamberWallTemperature(stage, state.thrustN);
 
       const chamber = this.node(`stage${state.stageIndex}_chamber`);
       chamber.tempK = wall.wallHotK;
