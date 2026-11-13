@@ -5,11 +5,28 @@ category: decision
 status: active
 tags: [simulation, physics, rocket]
 created: "2026-11-09T23:28:13"
-updated: "2026-11-13T12:29:37"
+updated: "2026-11-13T13:44:39"
 ---
 
 <!-- compiled_truth -->
-<current best understanding — replace this with the real content>
+## 目标与关卡
+
+模拟器要回答的是“这套火箭方案能剩下多少余量”，不是复刻某一枚火箭的外观。第一关固定 200 km LEO、10 t 载荷、$400M 一次性预算、PLOC ≤ 1/270、≤15 min，推进剂限 LOX/RP-1、LOX/CH4、LOX/LH2、NTO/MMH，最多 3 级。`validateLevelDesign` 把“物理可行”和“关卡达标”分开：Saturn V 修正后物理可行（TWR 1.19、Δv 18.18 km/s、Isp 454.5 s），但仍超出 PLOC 0.67% 和 $629.1M 预算。
+
+## 物理与数值
+
+物理模块独立于渲染：推进、质量、气动、轨道 RK4、热、结构、生保、辐射、成本、PLOC。状态显示以 `PhysicsDirector.positionKm()` 为单一来源；warp 只加速时间，不改物理量。J2 造成的 LEO 瞬时速度摆动约 0.144%，是物理摄动而非积分误差，遥测绿带取 0.2%。
+
+## 渲染比例与发射场
+
+场景单位统一为 **1 unit = 100 m**，由 `src/render/sceneScale.ts` 单点定义（`METRES_PER_UNIT = 100`、`UNITS_PER_KM = 10`、地球半径 63,710 units）。之前 `Scene` 用 1 unit = 100 km、`vehicleGeometry` 用 1 unit = 100 m，火箭相对地球大约放大了 1000 倍，这是“地球太小、火箭太大”的根因。现在场景以发射台为浮动原点：发射台 (0,0,0)，地心 (-63,710,0,0)，既保留真实比例，又避免 float32 在 6,371 km 坐标上损失 80 m 级细节。Saturn V 高 0.817 units（81.7 m）、半径 0.041 units（4.1 m），与地球半径比约 1/78,000。
+
+`src/render/LaunchComplex.ts` 按当前箭体高度生成发射场：混凝土坪、发射台、固定夹、1.35 倍箭高的桁架服务塔、可收放勤务臂、避雷针、小建筑和一块陆地垫层。低空控制/地面/追尾/座舱视角使用日间天空穹顶、距离雾和按箭体尺寸缩放的尾焰/烟雾/碎片；轨道与总览视角隐藏天空、显示星空。相机按箭高取景，默认 control 视角同时看到地球地平线和完整的发射台/服务塔。
+
+## 已知范围
+
+这是交互式教学/推演模型，不是任务规划工具；地球表面是低细节球体加发射场局部细节，不追求真实地形或纹理。第一关之外的概念方案（核热、电推进、行星发动机等）用真实物理做可行性判定，非化学推进的 Isp 直接给定，不伪造燃烧计算。
+
 
 ## Timeline
 
@@ -101,4 +118,10 @@ updated: "2026-11-13T12:29:37"
   kind: decision
   summary: "历史可行性修正：Saturn V 的 S-II 推进剂 930 t 是把磅当千克（实际 456 t），S-IVB 110/13 t 改为 107/12 t。LH2 平均分子量 8.9 改为 13.6（富燃 J-2 排气），Isp 562 s 降到 454.5 s，回到 450–465 s 包线；Saturn V 带 140 t 载荷总 Δv 10.6 km/s。起飞 TWR 硬门槛 1.2 降到 1.1（物理下限 >1），上级 TWR 不再作为硬门槛（S-IVB 带 140 t 约 0.4）。validateLevelDesign 新增 physicallyFeasible/reasons 分类：历史 Saturn V 物理可行，但仍不满足第一关的 PLOC 0.67% 和 .1M 预算，面板分开显示物理与关卡两个判定。"
   source: "src/physics/archetypes.ts; src/physics/propellants.ts; src/game/levels.ts; src/ui/LevelPanel.ts; tests/game/level1.test.ts"
+  affects: [crewed-spaceflight-sim]
+
+- time: 2026-11-13T13:44:39
+  kind: decision
+  summary: "渲染比例根因修正：统一 1 unit=100 m，地球半径 63,710 units，发射台浮动原点；新增 LaunchComplex 发射台/服务塔；日间天空与按箭体缩放的效果。239 测试通过，生产构建和六视角截图验证。"
+  source: "src/render/sceneScale.ts; src/render/LaunchComplex.ts; src/render/Scene.ts; tests/render/sceneScale.test.ts"
   affects: [crewed-spaceflight-sim]
