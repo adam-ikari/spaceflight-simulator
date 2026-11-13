@@ -1,4 +1,5 @@
 /** Minimal mission state and pub/sub — DESIGN.md §9, no framework. */
+import type { SystemsSnapshot } from '../physics/ComponentSystems';
 
 export interface GameState {
   phase: string;
@@ -10,6 +11,8 @@ export interface GameState {
   fuelPct: number;
   aborted: boolean;
   decisions: string[];
+  /** Per-component thermal/vibration state; null before a vehicle is set. */
+  systems?: SystemsSnapshot | null;
 }
 
 export type Listener = (s: GameState) => void;
@@ -24,6 +27,7 @@ const INITIAL: GameState = {
   fuelPct: 100,
   aborted: false,
   decisions: [],
+  systems: null,
 };
 
 let state: GameState = INITIAL;

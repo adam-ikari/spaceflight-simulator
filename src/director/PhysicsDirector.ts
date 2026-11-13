@@ -8,6 +8,8 @@ import {
 import { dynamicPressure } from '../physics/Atmosphere';
 import { computePLOC } from '../physics/RiskModel';
 import { computeCost } from '../physics/CostModel';
+import { ComponentSystems, type SystemsSnapshot } from '../physics/ComponentSystems';
+import type { StageSpec } from '../physics/RocketEquation';
 import { PHASE_ORDER, type Phase } from './phases';
 
 export interface Telemetry {
@@ -19,6 +21,8 @@ export interface Telemetry {
   ploc: number;
   costUsd: number;
   fuelPct: number;
+  /** Per-component temperatures, vibration and failure branches. */
+  systems: SystemsSnapshot | null;
 }
 
 /** Default launch vehicle for the director's coarse physics. */
@@ -58,6 +62,10 @@ export class PhysicsDirector {
   private costUsd = 0;
   private escapeSystem: 'tower' | 'propulsive' | 'none' = 'tower';
   private hasSolidBooster = false;
+  private stages: StageSpec[] = [];
+  private payloadKg = 0;
+  private systems: ComponentSystems | null = null;
+  private systemsSnapshot: SystemsSnapshot | null = null;
 
   constructor() {
     this.update();
@@ -83,10 +91,24 @@ export class PhysicsDirector {
     if (next) this.setPhase(next);
   }
 
-  /** Feed the actual vehicle config so computePLOC uses the right escape system. */
-  setVehicle(escapeSystem: 'tower' | 'propulsive' | 'none', hasSolidBooster: boolean): void {
+  /**
+   * Feed the actual vehicle config so computePLOC uses the right escape system
+   * and the component models are built from the real stage stack.
+   */
+  setVehicle(
+    escapeSystem: 'tower' | 'propulsive' | 'none',
+    hasSolidBooster: boolean,
+    stages?: StageSpec[],
+    payloadKg = 0,
+  ): void {
     this.escapeSystem = escapeSystem;
     this.hasSolidBooster = hasSolidBooster;
+    if (stages) {
+      this.stages = stages.map((s) => ({ ...s }));
+      this.payloadKg = Math.max(0, payloadKg);
+      this.systems = new ComponentSystems(this.stages, this.payloadKg, hasSolidBooster);
+      this.systemsSnapshot = this.systems.snapshot();
+    }
     this.update();
   }
 
@@ -125,6 +147,7 @@ export class PhysicsDirector {
         break;
     }
     this.s.t = t0 + dt;
+    this.stepSystems(dt);
     this.update();
   }
 
@@ -138,6 +161,7 @@ export class PhysicsDirector {
       ploc: this.ploc,
       costUsd: this.costUsd,
       fuelPct: (100 * this.dvRemainingMs) / ASCENT_DV_MS,
+      systems: this.systemsSnapshot,
     };
   }
 
@@ -233,6 +257,52 @@ export class PhysicsDirector {
     }
   }
 
+  /**
+   * Advance the component network with the current mission state.
+   *
+   * The director's trajectory is still coarse (fixed ascent acceleration), so
+   * mass and thrust are inferred from the design and the remaining Δv budget.
+   * The component physics itself consumes real stage geometry, chamber
+   * conditions and atmospheric density; when the trajectory is upgraded to
+   * integrate thrust/mass, only this adapter changes.
+   */
+  private stepSystems(dt: number): void {
+    if (!this.systems) return;
+    const { r } = this.radial();
+    const altM = Math.max(0, r - CONST.R_EARTH);
+    const speed = norm(this.s.vel);
+    const powered =
+      (this.p === 'LIFTOFF' || this.p === 'ASCENT' || this.p === 'ORBIT_INSERT') &&
+      this.dvRemainingMs > 0;
+    const activeStage = powered
+      ? this.p === 'ORBIT_INSERT'
+        ? Math.max(0, this.stages.length - 1)
+        : 0
+      : -1;
+    const stage = activeStage >= 0 ? this.stages[activeStage] : undefined;
+
+    const dryTotal = this.stages.reduce((m, s) => m + s.dryMassKg, 0);
+    const propTotal = this.stages.reduce((m, s) => m + s.propellantMassKg, 0);
+    const fuelFraction = Math.max(0, Math.min(1, this.dvRemainingMs / ASCENT_DV_MS));
+    const massKg = Math.max(1, this.payloadKg + dryTotal + propTotal * fuelFraction);
+
+    this.systems.step(
+      {
+        phase: this.p,
+        altitudeKm: altM / 1000,
+        speedMs: speed,
+        massKg,
+        thrustN: powered && stage ? stage.thrustN : 0,
+        powered,
+        stageIndex: activeStage,
+        dynamicPressurePa: dynamicPressure(speed, altM),
+        inSunlight: true,
+      },
+      dt,
+    );
+    this.systemsSnapshot = this.systems.snapshot();
+  }
+
   /** Recompute risk and cost from current state. */
   private update(): void {
     const { r } = this.radial();
@@ -249,6 +319,10 @@ export class PhysicsDirector {
       escapeSystem: this.escapeSystem,
       phase: phaseKey,
       crewed: true,
+      componentBranches: this.systemsSnapshot?.failures.map((f) => ({
+        node: f.node,
+        prob: f.prob,
+      })),
     });
     this.ploc = ploc;
 

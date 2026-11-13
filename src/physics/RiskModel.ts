@@ -12,6 +12,12 @@ export interface RiskInput {
   escapeSystem: 'tower' | 'propulsive' | 'none';
   phase: string;
   crewed: boolean;
+  /**
+   * Live component failures from the thermal/structural model. Each branch is
+   * a conditional probability for the current state (`thermal:<id>`, `pogo`,
+   * `tps_flux`, `fatigue`, ...), unioned into PLOC like any other branch.
+   */
+  componentBranches?: { node: string; prob: number }[];
 }
 
 export interface RiskOutput {
@@ -113,6 +119,14 @@ export function computePLOC(inp: RiskInput): RiskOutput {
   }
   if (phase === 'landing') {
     contributors.push({ node: 'landing_impact', prob: LANDING_IMPACT_PROB });
+  }
+
+  // Live component state: over-temperature, over-pressure, pogo, fatigue.
+  // A branch exists only while the component is actually out of limits, so the
+  // union moves with the physics rather than sitting at a fixed book value.
+  for (const branch of inp.componentBranches ?? []) {
+    const p = Math.min(0.999, Math.max(0, branch.prob));
+    if (p > 0) contributors.push({ node: branch.node, prob: p });
   }
 
   const ploc = 1 - contributors.reduce((acc, c) => acc * (1 - c.prob), 1);

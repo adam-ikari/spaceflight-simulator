@@ -13,8 +13,12 @@ import { PROPELLANTS } from '../physics/propellants';
 
 /** Scene units per metre (1 unit = 100 m, matching Scene's SCALE). */
 export const METRES_PER_UNIT = 100;
-/** Uniform size exaggeration for readability next to the Earth. */
-export const SCENE_EXAGGERATION = 4;
+/**
+ * 1 = true scale. The rocket renders at the same scale as the Earth; camera
+ * distances are expressed in vehicle heights, so framing still works. Physics
+ * always uses the metre-valued fields below, never scene units.
+ */
+export const SCENE_EXAGGERATION = 1;
 /** Target stack fineness ratio (length / diameter). */
 export const FINENESS = 10;
 /** Nose cone length as a multiple of the stack radius. */
@@ -59,12 +63,30 @@ export interface VehicleGeometry {
   radiusM: number;
   /** Core stack height including the nose cone, scene units. */
   height: number;
+  /** Core stack height including the nose cone, metres. */
+  heightM: number;
   /** Inline stage heights (nose excluded), scene units, bottom stage first. */
   stageHeights: number[];
+  /** Inline stage heights (nose excluded), metres, bottom stage first. */
+  stageHeightsM: number[];
   /** Length/diameter of the core stack, dimensionless. */
   fineness: number;
+  /** Frontal area of the core, m². */
+  frontalAreaM2: number;
+  /** Wetted (skin-friction) area of the core, m². */
+  wettedAreaM2: number;
+  /** Total propellant volume, m³. */
+  volumeM3: number;
+  /** Nose-cone length, m. */
+  noseLengthM: number;
   /** Side boosters, when present. */
-  strapOn: { radius: number; height: number; offset: number } | null;
+  strapOn: {
+    radius: number;
+    height: number;
+    radiusM: number;
+    heightM: number;
+    offset: number;
+  } | null;
 }
 
 /**
@@ -103,9 +125,12 @@ export function computeVehicleGeometry(
   const toUnits = (metres: number): number => (metres / METRES_PER_UNIT) * SCENE_EXAGGERATION;
 
   const radius = toUnits(radiusM);
-  const stageHeights = volumes.map((v) => toUnits((bodyHeightM * v) / volumeTotal));
-  const noseH = radius * NOSE_RADIUS_RATIO;
+  const stageHeightsM = volumes.map((v) => (bodyHeightM * v) / volumeTotal);
+  const stageHeights = stageHeightsM.map(toUnits);
+  const noseLengthM = radiusM * NOSE_RADIUS_RATIO;
+  const noseH = toUnits(noseLengthM);
   const height = stageHeights.reduce((a, b) => a + b, 0) + noseH;
+  const heightM = bodyHeightM + noseLengthM;
 
   let strap: VehicleGeometry['strapOn'] = null;
   if (strapVolume > 0) {
@@ -122,15 +147,25 @@ export function computeVehicleGeometry(
     }
     const rb = toUnits(rbM);
     const hb = toUnits(hbM);
-    strap = { radius: rb, height: hb, offset: radius + rb * 0.92 };
+    strap = { radius: rb, height: hb, radiusM: rbM, heightM: hbM, offset: radius + rb * 0.92 };
   }
 
   return {
     radius,
     radiusM,
     height,
+    heightM,
     stageHeights,
+    stageHeightsM,
     fineness: height / (2 * radius),
+    frontalAreaM2: Math.PI * radiusM * radiusM,
+    // Cylinder side + conical nose slant (frustum side area approximated by
+    // the cone's slant surface).
+    wettedAreaM2:
+      2 * Math.PI * radiusM * bodyHeightM +
+      Math.PI * radiusM * Math.hypot(noseLengthM, radiusM),
+    volumeM3: volumeTotal,
+    noseLengthM,
     strapOn: strap,
   };
 }

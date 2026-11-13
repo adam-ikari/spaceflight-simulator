@@ -1,6 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import { PHASE_ORDER } from '../../src/director/phases';
 import { PhysicsDirector } from '../../src/director/PhysicsDirector';
+import { ARCHETYPES } from '../../src/physics/archetypes';
+import type { StageSpec } from '../../src/physics/RocketEquation';
 
 describe('PHASE_ORDER', () => {
   it('lists the ten mission phases in flight order', () => {
@@ -161,5 +163,52 @@ describe('PhysicsDirector vehicle-aware PLOC', () => {
     const propPloc = propulsive.telemetry().ploc;
 
     expect(propPloc).toBeLessThan(solidPloc);
+  });
+});
+
+describe('PhysicsDirector component systems', () => {
+  const saturn = ARCHETYPES.find((a) => a.id === 'saturn_v')!.stages;
+
+  it('builds a full component snapshot when the stage stack is supplied', () => {
+    const d = new PhysicsDirector();
+    d.setVehicle('tower', false, saturn, 140_000);
+    const t = d.telemetry();
+    expect(t.systems).not.toBeNull();
+    expect(t.systems!.components).toHaveLength(saturn.length * 3 + 3);
+    expect(t.systems!.engineWallK).not.toBeNull();
+    expect(t.systems!.pogoHz).toBeGreaterThan(4);
+  });
+
+  it('steps component temperature and vibration during ascent', () => {
+    const d = new PhysicsDirector();
+    d.setVehicle('tower', false, saturn, 140_000);
+    d.setPhase('LIFTOFF');
+    for (let i = 0; i < 20; i++) d.step(1);
+    const y = d.telemetry().systems!;
+    expect(y.engineWallK!).toBeGreaterThan(300);
+    expect(y.engineWallK!).toBeLessThan(1000);
+    expect(y.pogoG).toBeGreaterThan(0);
+    expect(y.randomGrms).toBeGreaterThan(5);
+  });
+
+  it('an over-limit pogo state raises PLOC through a component branch', () => {
+    const hot: StageSpec = {
+      propellantId: 'LOX_RP1',
+      ofRatio: 2.3,
+      pcMPa: 6,
+      expansionRatio: 12,
+      propellantMassKg: 4e5,
+      dryMassKg: 20_000,
+      thrustN: 1.0e7,
+      isSolid: true,
+    };
+    const d = new PhysicsDirector();
+    d.setVehicle('tower', true, [hot], 5_000);
+    d.setPhase('LIFTOFF');
+    d.step(1);
+    const t = d.telemetry();
+    expect(t.systems!.pogoG).toBeGreaterThan(0.5);
+    expect(t.ploc).toBeGreaterThan(0.3);
+    expect(t.systems!.failures.some((f) => f.node === 'pogo')).toBe(true);
   });
 });

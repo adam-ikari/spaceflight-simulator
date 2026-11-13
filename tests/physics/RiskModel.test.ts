@@ -108,4 +108,21 @@ describe('computePLOC', () => {
   it('no crew -> no loss of crew probability', () => {
     expect(computePLOC({ ...base, crewed: false }).ploc).toBe(0);
   });
+
+  it('unions live component branches only while they are non-zero', () => {
+    const baseline = computePLOC(base);
+    const hot = computePLOC({
+      ...base,
+      componentBranches: [{ node: 'thermal:engine', prob: 0.1 }],
+    });
+    expect(hot.ploc).toBeGreaterThan(baseline.ploc);
+    expect(hot.contributors.some((c) => c.node === 'thermal:engine')).toBe(true);
+
+    const zero = computePLOC({
+      ...base,
+      componentBranches: [{ node: 'thermal:engine', prob: 0 }],
+    });
+    expect(zero.contributors.some((c) => c.node === 'thermal:engine')).toBe(false);
+    expect(zero.ploc).toBeCloseTo(baseline.ploc, 12);
+  });
 });

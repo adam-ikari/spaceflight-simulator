@@ -38,9 +38,50 @@ export class TelemetryPanel {
   <div style="${ROW_STYLE}"><span>成本</span><b>$${(s.costUsd / 1e6).toFixed(2)} M</b></div>
   <div style="${ROW_STYLE}"><span>燃料</span><b>${s.fuelPct.toFixed(1)} %</b></div>
   <div style="${ROW_STYLE}"><span>已中止</span><b style="color:${s.aborted ? '#c62828' : '#2e7d32'}">${s.aborted ? '是' : '否'}</b></div>
+  ${this.systemRows(s)}
   <div style="margin-top:.5rem">最近决策</div>
   <ul style="margin:.2rem 0 0;padding-left:1.1rem">${decisions}</ul>
 </div>`;
+  }
+
+  /**
+   * Component-level rows: the hottest components, pogo, random vibration and
+   * propellant boil-off. Utilisation is temperature / limit, so 100 % is the
+   * service limit, not an arbitrary colour threshold.
+   */
+  private systemRows(s: GameState): string {
+    const y = s.systems;
+    if (!y) return '';
+    const colour = (u: number): string =>
+      u > 0.98 ? '#c62828' : u > 0.85 ? '#f9a825' : '#2e7d32';
+    const rows = y.components
+      .slice()
+      .sort((a, b) => b.utilisation - a.utilisation)
+      .slice(0, 5)
+      .map(
+        (c) =>
+          `<div style="${ROW_STYLE}"><span>${c.label}</span><b style="color:${colour(c.utilisation)}">${c.tempK.toFixed(0)} K · ${(c.utilisation * 100).toFixed(0)}%</b></div>`,
+      )
+      .join('');
+    const pogo =
+      y.pogoG > 0.001
+        ? `<div style="${ROW_STYLE}"><span>pogo</span><b>${y.pogoG.toFixed(2)} g · ${y.pogoHz.toFixed(1)} Hz</b></div>`
+        : '';
+    const failures = y.failures.length
+      ? `<div style="margin-top:.25rem;color:#c62828">超限：${y.failures
+          .slice(0, 2)
+          .map((f) => f.detail)
+          .join('；')}</div>`
+      : '';
+    return `
+  <div style="margin-top:.6rem;border-top:1px solid #3c4043;padding-top:.45rem;font-weight:600">分系统</div>
+  ${rows}
+  <div style="${ROW_STYLE}"><span>热防护</span><b style="color:${colour(y.tpsK / 3500)}">${y.tpsK.toFixed(0)} K</b></div>
+  ${pogo}
+  <div style="${ROW_STYLE}"><span>随机振动</span><b>${y.randomGrms.toFixed(1)} g_rms</b></div>
+  <div style="${ROW_STYLE}"><span>弯曲频率</span><b>${y.bendingHz.toFixed(2)} Hz</b></div>
+  <div style="${ROW_STYLE}"><span>蒸发损失</span><b>${y.boiloffKg.toFixed(1)} kg · ${y.boiloffPct.toFixed(3)} %</b></div>
+  ${failures}`;
   }
 
   /**

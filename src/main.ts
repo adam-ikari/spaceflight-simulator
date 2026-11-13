@@ -24,8 +24,7 @@ function boot(): void {
   // Designer pushes the current stack to the rigid body (constructor does the
   // first push with the default archetype).
   new RocketDesigner(el('designer'), (stages, payloadKg, config) => {
-    void payloadKg;
-    director.setVehicle(config.escapeSystem, config.hasSolidBooster);
+    director.setVehicle(config.escapeSystem, config.hasSolidBooster, stages, payloadKg);
     scene.setVehicle(stages, config);
   });
   new TelemetryPanel(el('telemetry')).render();

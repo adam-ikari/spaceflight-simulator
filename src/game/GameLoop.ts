@@ -145,6 +145,7 @@ export class GameLoop {
       ploc: t.ploc,
       costUsd: t.costUsd,
       fuelPct: t.fuelPct,
+      systems: t.systems,
     });
   }
 }
