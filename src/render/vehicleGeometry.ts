@@ -5,14 +5,14 @@
  * Each stage's tank volume follows from its propellant mass at the mixture
  * ratio's bulk density (plus dry mass at an effective structural density), and
  * the stack diameter follows from a launch-vehicle fineness ratio
- * (length / diameter). A single exaggeration factor scales every dimension for
- * readability next to a 6371 km Earth; proportions are preserved.
+ * (length / diameter). A single exaggeration factor scales every dimension;
+ * at 1 the stack is true scale next to the 6,371 km Earth.
  */
 import type { StageSpec } from '../physics/RocketEquation';
 import { PROPELLANTS } from '../physics/propellants';
+import { METRES_PER_UNIT } from './sceneScale';
 
-/** Scene units per metre (1 unit = 100 m, matching Scene's SCALE). */
-export const METRES_PER_UNIT = 100;
+export { METRES_PER_UNIT };
 /**
  * 1 = true scale. The rocket renders at the same scale as the Earth; camera
  * distances are expressed in vehicle heights, so framing still works. Physics

@@ -29,6 +29,7 @@ export class Effects {
   private phase: Phase = 'PAD';
   private clock = 0;
   private radius = 0.6;
+  private height = 0.82;
 
   private tex?: B.DynamicTexture;
   private plume?: B.ParticleSystem;
@@ -44,7 +45,9 @@ export class Effects {
 
   constructor(
     private readonly scene: B.Scene,
-    private readonly padPos = new B.Vector3(63.71, 0, 0),
+    private readonly padPos = new B.Vector3(0, 0, 0),
+    private readonly starMinRadius = 600,
+    private readonly starMaxRadius = 1800,
   ) {
     if (!this.enabled) return;
     this.buildStars();
@@ -56,6 +59,7 @@ export class Effects {
     if (!this.enabled) return;
     this.rocketRoot = rocketRoot;
     this.radius = radius;
+    this.height = height;
 
     // Plume emitter: invisible zero-size mesh at the nozzle (model y = 0).
     this.plume?.dispose(false);
@@ -82,8 +86,8 @@ export class Effects {
     ps.maxEmitBox = new B.Vector3(radius * 0.25, 0, radius * 0.25);
     ps.direction1 = new B.Vector3(-0.18, -1, -0.18);
     ps.direction2 = new B.Vector3(0.18, -1, 0.18);
-    ps.minEmitPower = 5;
-    ps.maxEmitPower = 9;
+    ps.minEmitPower = height * 5;
+    ps.maxEmitPower = height * 9;
     ps.minSize = radius * 0.5;
     ps.maxSize = radius * 2.2;
     ps.minLifeTime = 0.18;
@@ -97,6 +101,17 @@ export class Effects {
     ps.updateSpeed = 0.02;
     ps.start();
     this.plume = ps;
+
+    // Liftoff smoke is sized from the stack, not from absolute scene units, so
+    // a small launcher does not disappear under a Saturn-sized cloud.
+    if (this.smoke) {
+      this.smoke.minEmitBox.set(-radius * 4, -radius * 1.5, -radius * 4);
+      this.smoke.maxEmitBox.set(radius * 4, radius * 1.5, radius * 4);
+      this.smoke.minEmitPower = height * 2;
+      this.smoke.maxEmitPower = height * 5;
+      this.smoke.minSize = height * 0.8;
+      this.smoke.maxSize = height * 3;
+    }
 
     // Reentry plasma shell around the whole vehicle centre.
     this.reentry?.dispose();
@@ -123,6 +138,11 @@ export class Effects {
 
   setPhase(phase: Phase): void {
     this.phase = phase;
+  }
+
+  /** Stars are hidden in the daytime sky; space views keep them. */
+  setStarsVisible(visible: boolean): void {
+    if (this.stars) this.stars.isVisible = visible;
   }
 
   /** Called once per frame. `velocityDir` is the rocket's normalised axis. */
@@ -167,7 +187,7 @@ export class Effects {
     const ps = this.smoke;
     if (!ps || !this.rocketRoot) return;
     const wp = this.rocketRoot.absolutePosition;
-    const nearPad = B.Vector3.Distance(wp, this.padPos) < 4;
+    const nearPad = B.Vector3.Distance(wp, this.padPos) < this.height * 6;
     if ((this.phase === 'LIFTOFF' || this.phase === 'ASCENT') && nearPad) {
       this.smokeEmitter.copyFrom(wp);
       ps.emitRate = this.phase === 'LIFTOFF' ? 380 : 140;
@@ -194,7 +214,7 @@ export class Effects {
         this.debris.splice(i, 1);
         continue;
       }
-      piece.vel.y -= 3 * dt;
+      piece.vel.y -= this.height * 0.12 * dt;
       piece.mesh.position.addInPlace(piece.vel.scale(dt));
     }
   }
@@ -210,7 +230,7 @@ export class Effects {
 
   private dropDebris(): void {
     if (!this.rocketRoot) return;
-    const mesh = B.MeshBuilder.CreateBox('debris', { size: 0.3 }, this.scene);
+    const mesh = B.MeshBuilder.CreateBox('debris', { size: this.height * 0.04 }, this.scene);
     const mat = new B.PBRMaterial('debrisMat', this.scene);
     mat.albedoColor = new B.Color3(0.6, 0.62, 0.65);
     mat.metallic = 0.5;
@@ -220,16 +240,16 @@ export class Effects {
     mesh.rotationQuaternion = B.Quaternion.Identity();
     const wp = this.rocketRoot.absolutePosition;
     mesh.position.set(
-      wp.x + (Math.random() - 0.5) * 0.8,
-      wp.y - 0.6,
-      wp.z + (Math.random() - 0.5) * 0.8,
+      wp.x + (Math.random() - 0.5) * this.height * 0.5,
+      wp.y - this.height * 0.5,
+      wp.z + (Math.random() - 0.5) * this.height * 0.5,
     );
     this.debris.push({
       mesh,
       vel: new B.Vector3(
-        (Math.random() - 0.5) * 3,
-        (Math.random() - 0.5) * 2,
-        (Math.random() - 0.5) * 3,
+        (Math.random() - 0.5) * this.height * 3,
+        (Math.random() - 0.5) * this.height * 2,
+        (Math.random() - 0.5) * this.height * 3,
       ),
       life: 0,
     });
@@ -285,7 +305,8 @@ export class Effects {
       const z = 2 * Math.random() - 1;
       const a = Math.random() * Math.PI * 2;
       const r = Math.sqrt(Math.max(0, 1 - z * z));
-      const dist = 600 + Math.random() * 1200;
+      const dist =
+        this.starMinRadius + Math.random() * (this.starMaxRadius - this.starMinRadius);
       positions[i * 3] = Math.cos(a) * r * dist;
       positions[i * 3 + 1] = z * dist;
       positions[i * 3 + 2] = Math.sin(a) * r * dist;
