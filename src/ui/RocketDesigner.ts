@@ -71,6 +71,13 @@ export class RocketDesigner {
   <label style="${FIELD_STYLE}">载荷（kg）
     <input data-role="payload" type="number" step="any" value="${this.payloadKg}" style="${INPUT_STYLE}">
   </label>
+  <label style="${FIELD_STYLE}">逃逸方式
+    <select data-role="escape" style="${INPUT_STYLE}">
+      <option value="tower"${this.escapeSystem === 'tower' ? ' selected' : ''}>逃逸塔</option>
+      <option value="propulsive"${this.escapeSystem === 'propulsive' ? ' selected' : ''}>推进逃逸</option>
+      <option value="none"${this.escapeSystem === 'none' ? ' selected' : ''}>无</option>
+    </select>
+  </label>
   ${this.stages.map((s, i) => this.stageMarkup(s, i)).join('')}
   <div data-role="readout" style="margin-top:.75rem;border-top:1px solid #3c4043;padding-top:.6rem"></div>
 </div>`;
@@ -123,6 +130,12 @@ export class RocketDesigner {
     const payload = this.container.querySelector<HTMLInputElement>('[data-role="payload"]');
     payload?.addEventListener('input', () => {
       this.payloadKg = Number(payload.value);
+      this.refresh();
+    });
+
+    const escape = this.container.querySelector<HTMLSelectElement>('[data-role="escape"]');
+    escape?.addEventListener('change', () => {
+      this.escapeSystem = escape.value as VehicleConfig['escapeSystem'];
       this.refresh();
     });
 

@@ -36,6 +36,11 @@
         overflow: auto;
         min-height: 0;
       }
+      #level {
+        position: sticky;
+        top: 0;
+        z-index: 2;
+      }
       #controls {
         position: fixed;
         left: 0.75rem;
@@ -64,6 +69,7 @@
         <div id="brand" style="font:600 16px/1.4 system-ui,sans-serif;letter-spacing:.04em;color:#8ab4f8">
           航天模拟器
         </div>
+        <div id="level"></div>
         <div id="designer"></div>
         <div id="telemetry"></div>
       </div>

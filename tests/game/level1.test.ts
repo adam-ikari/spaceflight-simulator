@@ -42,6 +42,9 @@ describe('Level 1 — 200 km crewed LEO', () => {
 
     expect(result.reasons).toEqual([]);
     expect(result.feasible).toBe(true);
+    expect(result.metrics?.totalDvMs).toBeGreaterThanOrEqual(LEVEL_1.requiredDvMs);
+    expect(result.metrics?.ploc).toBeLessThanOrEqual(LEVEL_1.maxPloc);
+    expect(result.metrics?.costUsd).toBeLessThanOrEqual(LEVEL_1.budgetUsd);
   });
 
   it('rejects a 5 % mixture-ratio drift because the Δv gap opens', () => {
@@ -52,6 +55,7 @@ describe('Level 1 — 200 km crewed LEO', () => {
     // The failure must name the physical quantity, not just a boolean.
     expect(result.reasons.some((r) => r.includes('Δv'))).toBe(true);
     expect(result.reasons.some((r) => r.includes('缺口'))).toBe(true);
+    expect(result.metrics?.totalDvMs).toBeLessThan(LEVEL_1.requiredDvMs);
   });
 
   it('rejects a chamber without regenerative cooling on wall temperature', () => {
@@ -63,5 +67,17 @@ describe('Level 1 — 200 km crewed LEO', () => {
 
     expect(result.feasible).toBe(false);
     expect(result.reasons.some((r) => r.includes('壁温') && r.includes('1000 K'))).toBe(true);
+    expect(result.metrics?.wallTempsK[0]).toBeGreaterThan(1000);
+  });
+
+  it('rejects a design that misses the reliability gate', () => {
+    const result = validateLevelDesign(LEVEL_1, {
+      ...referenceDesign(),
+      escapeSystem: 'none',
+    });
+
+    expect(result.feasible).toBe(false);
+    expect(result.reasons.some((r) => r.includes('PLOC'))).toBe(true);
+    expect(result.metrics?.ploc).toBeGreaterThan(LEVEL_1.maxPloc);
   });
 });

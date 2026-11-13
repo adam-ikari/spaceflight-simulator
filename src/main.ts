@@ -8,6 +8,7 @@ import { GameLoop } from './game/GameLoop';
 import { Scene } from './render/Scene';
 import type { ViewMode } from './render/Scene';
 import { RocketDesigner } from './ui/RocketDesigner';
+import { LevelPanel } from './ui/LevelPanel';
 import { TelemetryPanel } from './ui/TelemetryPanel';
 
 function el(id: string): HTMLElement {
@@ -22,8 +23,11 @@ function boot(): void {
   const gameLoop = new GameLoop(director, 10);
 
   // Designer pushes the current stack to the rigid body (constructor does the
-  // first push with the default archetype).
+  // first push with the default archetype). The level panel is created first so
+  // that constructor-time refresh already lands in a mounted panel.
+  const levelPanel = new LevelPanel(el('level'));
   new RocketDesigner(el('designer'), (stages, payloadKg, config) => {
+    levelPanel.update(stages, payloadKg, config.escapeSystem);
     director.setVehicle(config.escapeSystem, config.hasSolidBooster, stages, payloadKg);
     scene.setVehicle(stages, config);
   });

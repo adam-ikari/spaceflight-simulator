@@ -62,10 +62,25 @@ export interface LevelSpec {
   designMaxQPa: number;
 }
 
+export interface FeasibilityMetrics {
+  /** Total ideal Δv of all stages, m/s. */
+  totalDvMs: number;
+  /** Level requirement including losses, m/s. */
+  requiredDvMs: number;
+  liftoffTwr: number;
+  /** Ascent PLOC plus the in-orbit transit branch. */
+  ploc: number;
+  costUsd: number;
+  /** Hot-gas-side chamber wall per stage, K. */
+  wallTempsK: number[];
+}
+
 export interface FeasibilityResult {
   feasible: boolean;
   /** Empty when feasible; otherwise one line per physical violation. */
   reasons: string[];
+  /** Null when the design is too malformed to evaluate. */
+  metrics: FeasibilityMetrics | null;
 }
 
 /** Minimum liftoff thrust-to-weight for a viable launch (DESIGN.md §6). */
@@ -156,12 +171,13 @@ export function validateLevelDesign(level: LevelSpec, design: LevelDesign): Feas
   const payloadKg = design.payloadKg ?? level.payloadKg;
 
   if (stages.length === 0) {
-    return { feasible: false, reasons: ['未配置任何级：至少需要 1 级'] };
+    return { feasible: false, reasons: ['未配置任何级：至少需要 1 级'], metrics: null };
   }
   if (stages.length > level.maxStages) {
     return {
       feasible: false,
       reasons: [`级数 ${stages.length} 超过关卡上限 ${level.maxStages} 级`],
+      metrics: null,
     };
   }
   if (payloadKg !== level.payloadKg) {
@@ -170,6 +186,7 @@ export function validateLevelDesign(level: LevelSpec, design: LevelDesign): Feas
       reasons: [
         `载荷 ${(payloadKg / 1000).toFixed(1)} t 不符合关卡要求 ${(level.payloadKg / 1000).toFixed(1)} t`,
       ],
+      metrics: null,
     };
   }
 
@@ -191,7 +208,7 @@ export function validateLevelDesign(level: LevelSpec, design: LevelDesign): Feas
       );
     }
   }
-  if (reasons.length > 0) return { feasible: false, reasons };
+  if (reasons.length > 0) return { feasible: false, reasons, metrics: null };
 
   // --- Performance: Isp, Δv, thrust -------------------------------------
   let totalDv = 0;
@@ -237,9 +254,11 @@ export function validateLevelDesign(level: LevelSpec, design: LevelDesign): Feas
 
   // --- Thermal: chamber wall --------------------------------------------
   const componentBranches: { node: string; prob: number }[] = [];
+  const wallTempsK: number[] = [];
   for (let i = 0; i < stages.length; i++) {
     const s = stages[i];
     const wall = chamberWallTemperature(s, s.thrustN);
+    wallTempsK.push(wall.wallHotK);
     if (wall.wallHotK > CHAMBER_LIMIT_K) {
       const mode = s.regenerativeCooling === false ? '无再生冷却' : '再生冷却不足';
       reasons.push(
@@ -277,5 +296,16 @@ export function validateLevelDesign(level: LevelSpec, design: LevelDesign): Feas
     );
   }
 
-  return { feasible: reasons.length === 0, reasons };
+  return {
+    feasible: reasons.length === 0,
+    reasons,
+    metrics: {
+      totalDvMs: totalDv,
+      requiredDvMs: level.requiredDvMs,
+      liftoffTwr,
+      ploc,
+      costUsd: cost.total,
+      wallTempsK,
+    },
+  };
 }
