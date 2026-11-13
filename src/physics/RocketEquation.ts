@@ -42,8 +42,12 @@ export interface RocketValidation {
 
 /** LEO insertion Δv budget (m/s), DESIGN.md §6. */
 const LEO_DV = 9400;
-/** Minimum first-stage thrust-to-weight for a viable launch. */
-const MIN_TWR = 1.2;
+/**
+ * Minimum first-stage thrust-to-weight for a viable launch. TWR > 1 is the
+ * physical floor; 1.1 is a practical margin that still accepts the historical
+ * Saturn V (~1.14–1.19). 1.2 remains the DESIGN.md target, not a hard gate.
+ */
+const MIN_TWR = 1.1;
 /** Structure mass fraction floor: dry / (dry + propellant). */
 const STRUCTURE_FLOOR: Record<string, number> = {
   LOX_RP1: 0.05,

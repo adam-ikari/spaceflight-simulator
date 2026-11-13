@@ -1,6 +1,19 @@
 import { describe, it, expect } from 'vitest';
 import { computeEngine } from '../../src/physics/PropulsionEngine';
 
+describe('PropulsionEngine LOX/LH2', () => {
+  it('J-2-class nozzle gives 450–465 s vacuum Isp', () => {
+    const r = computeEngine({
+      propellantId: 'LOX_LH2',
+      ofRatio: 5.5,
+      pcMPa: 5.2,
+      expansionRatio: 27.5,
+    });
+    expect(r.ispVac).toBeGreaterThanOrEqual(450);
+    expect(r.ispVac).toBeLessThanOrEqual(465);
+  });
+});
+
 describe('PropulsionEngine LOX/RP-1', () => {
   const r = computeEngine({ propellantId: 'LOX_RP1', ofRatio: 2.3, pcMPa: 7, expansionRatio: 16 });
 

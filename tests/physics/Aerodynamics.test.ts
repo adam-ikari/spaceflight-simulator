@@ -30,9 +30,11 @@ describe('speed of sound and Mach', () => {
 describe('shape-derived frontal area', () => {
   it('uses the geometry radius, not a fixed 80 m²', () => {
     expect(geo.frontalAreaM2).toBeCloseTo(Math.PI * geo.radiusM ** 2, 6);
-    // The volume-derived Saturn V stack is ~64 m², not the old constant 80.
-    expect(geo.frontalAreaM2).toBeGreaterThan(55);
-    expect(geo.frontalAreaM2).toBeLessThan(75);
+    // After correcting the S-II propellant load, the volume-derived stack is
+    // ~52 m², not the old constant 80. The real Saturn V is ~80 m²; this test
+    // only guards against returning a fixed area.
+    expect(geo.frontalAreaM2).toBeGreaterThan(45);
+    expect(geo.frontalAreaM2).toBeLessThan(60);
   });
 
   it('adds the side-booster pair when the geometry has strap-ons', () => {

@@ -58,7 +58,7 @@ describe('rocket equation', () => {
     expect(v.warnings.join()).toMatch(/structure|结构/);
   });
 
-  it('warns on first-stage TWR below 1.2', () => {
+  it('warns on first-stage TWR below 1.1', () => {
     const weak = { ...RP1, propellantMassKg: 100000, dryMassKg: 8000, thrustN: 1e6 };
     const v = validateRocket([weak], 5000);
     expect(v.warnings.join()).toMatch(/TWR/);

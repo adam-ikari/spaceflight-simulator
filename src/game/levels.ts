@@ -76,17 +76,30 @@ export interface FeasibilityMetrics {
 }
 
 export interface FeasibilityResult {
+  /** True only when both the physical screen and the level contract pass. */
   feasible: boolean;
-  /** Empty when feasible; otherwise one line per physical violation. */
+  /**
+   * Physical feasibility with the level's budget, PLOC and payload gates
+   * removed. Null when the stack is too malformed to evaluate (for example a
+   * payload mismatch that the caller still wants to show as a level failure).
+   */
+  physicallyFeasible: boolean | null;
+  /** Empty when feasible; physical reasons first, then level reasons. */
   reasons: string[];
+  /** Reasons that make the stack physically unworkable. */
+  physicalReasons: string[];
+  /** Reasons that miss this level's contract but not physics. */
+  levelReasons: string[];
   /** Null when the design is too malformed to evaluate. */
   metrics: FeasibilityMetrics | null;
 }
 
-/** Minimum liftoff thrust-to-weight for a viable launch (DESIGN.md §6). */
-const MIN_LIFTOFF_TWR = 1.2;
-/** Minimum upper-stage ignition TWR (DESIGN.md §6). */
-const MIN_UPPER_TWR = 0.8;
+/**
+ * Minimum liftoff thrust-to-weight. TWR > 1 is the physical floor; 1.1 is a
+ * practical screen that still accepts the historical Saturn V (~1.14–1.19).
+ * DESIGN.md's 1.2 is a design-margin target, not a feasibility gate.
+ */
+export const MIN_LIFTOFF_TWR = 1.1;
 /** Van Allen transit share for a 200 km LEO mission (RiskModel §6). */
 const RADIATION_TRANSIT_PROB = 0.0005;
 
@@ -166,49 +179,62 @@ function estimateCost(
  * meaningless), then performance (Isp, Δv, thrust), then thermal/risk/cost.
  */
 export function validateLevelDesign(level: LevelSpec, design: LevelDesign): FeasibilityResult {
-  const reasons: string[] = [];
+  const physicalReasons: string[] = [];
+  const levelReasons: string[] = [];
   const stages = design.stages;
   const payloadKg = design.payloadKg ?? level.payloadKg;
 
+  const finish = (
+    feasible: boolean,
+    physicallyFeasible: boolean | null,
+    metrics: FeasibilityMetrics | null,
+  ): FeasibilityResult => ({
+    feasible,
+    physicallyFeasible,
+    reasons: [...physicalReasons, ...levelReasons],
+    physicalReasons,
+    levelReasons,
+    metrics,
+  });
+
   if (stages.length === 0) {
-    return { feasible: false, reasons: ['未配置任何级：至少需要 1 级'], metrics: null };
+    physicalReasons.push('未配置任何级：至少需要 1 级');
+    return finish(false, false, null);
   }
   if (stages.length > level.maxStages) {
-    return {
-      feasible: false,
-      reasons: [`级数 ${stages.length} 超过关卡上限 ${level.maxStages} 级`],
-      metrics: null,
-    };
+    levelReasons.push(`级数 ${stages.length} 超过关卡上限 ${level.maxStages} 级`);
+    return finish(false, null, null);
   }
   if (payloadKg !== level.payloadKg) {
-    return {
-      feasible: false,
-      reasons: [
-        `载荷 ${(payloadKg / 1000).toFixed(1)} t 不符合关卡要求 ${(level.payloadKg / 1000).toFixed(1)} t`,
-      ],
-      metrics: null,
-    };
+    levelReasons.push(
+      `载荷 ${(payloadKg / 1000).toFixed(1)} t 不符合关卡要求 ${(level.payloadKg / 1000).toFixed(1)} t`,
+    );
+    return finish(false, null, null);
   }
 
   for (let i = 0; i < stages.length; i++) {
     const s = stages[i];
     const label = `级 ${i + 1}`;
     if (!PROPELLANTS[s.propellantId]) {
-      reasons.push(`${label} 推进剂 "${s.propellantId}" 不在推进剂数据库中`);
+      physicalReasons.push(`${label} 推进剂 "${s.propellantId}" 不在推进剂数据库中`);
     } else if (!level.allowedPropellants.includes(s.propellantId)) {
-      reasons.push(`${label} 推进剂 ${PROPELLANTS[s.propellantId].name} 不在本关允许集合内`);
+      levelReasons.push(`${label} 推进剂 ${PROPELLANTS[s.propellantId].name} 不在本关允许集合内`);
     }
-    if (!(s.propellantMassKg > 0)) reasons.push(`${label} 推进剂质量必须大于 0 kg`);
-    if (!(s.dryMassKg > 0)) reasons.push(`${label} 结构质量必须大于 0 kg`);
-    if (!(s.thrustN > 0)) reasons.push(`${label} 推力必须大于 0 N`);
+    if (!(s.propellantMassKg > 0)) physicalReasons.push(`${label} 推进剂质量必须大于 0 kg`);
+    if (!(s.dryMassKg > 0)) physicalReasons.push(`${label} 结构质量必须大于 0 kg`);
+    if (!(s.thrustN > 0)) physicalReasons.push(`${label} 推力必须大于 0 N`);
     const stackMass = stackMassFrom(stages, i, payloadKg);
     if (!(stackMass - s.propellantMassKg > 0)) {
-      reasons.push(
+      physicalReasons.push(
         `${label} 推进剂 ${(s.propellantMassKg / 1000).toFixed(1)} t 超过该级点火总质量 ${(stackMass / 1000).toFixed(1)} t`,
       );
     }
   }
-  if (reasons.length > 0) return { feasible: false, reasons, metrics: null };
+
+  // Unknown/invalid propellants or masses make the performance numbers
+  // meaningless, so stop before stagePerformance. A merely disallowed
+  // propellant is a level rule and can still be screened physically.
+  if (physicalReasons.length > 0) return finish(false, false, null);
 
   // --- Performance: Isp, Δv, thrust -------------------------------------
   let totalDv = 0;
@@ -222,7 +248,7 @@ export function validateLevelDesign(level: LevelSpec, design: LevelDesign): Feas
 
     const band = PROPELLANTS[s.propellantId].ispVacRange;
     if (perf.ispVac < band[0]) {
-      reasons.push(
+      physicalReasons.push(
         `级 ${i + 1} Isp ${perf.ispVac.toFixed(1)} s 低于 ${PROPELLANTS[s.propellantId].name} 包线下限 ${band[0]} s（混合比/喷管效率不足）`,
       );
     }
@@ -230,7 +256,7 @@ export function validateLevelDesign(level: LevelSpec, design: LevelDesign): Feas
 
   if (totalDv < level.requiredDvMs) {
     const gap = level.requiredDvMs - totalDv;
-    reasons.push(
+    physicalReasons.push(
       `总 Δv ${totalDv.toFixed(0)} m/s 低于 ${level.targetOrbitKm} km LEO 需求 ${level.requiredDvMs} m/s，缺口 ${gap.toFixed(0)} m/s（一级 Isp ${ispVac[0].toFixed(1)} s）`,
     );
   }
@@ -238,19 +264,14 @@ export function validateLevelDesign(level: LevelSpec, design: LevelDesign): Feas
   const liftoffMassKg = stages.reduce((m, s) => m + s.dryMassKg + s.propellantMassKg, 0) + payloadKg;
   const liftoffTwr = stages[0].thrustN / (liftoffMassKg * CONST.G0);
   if (liftoffTwr < MIN_LIFTOFF_TWR) {
-    reasons.push(
+    physicalReasons.push(
       `起飞推重比 ${liftoffTwr.toFixed(2)} < ${MIN_LIFTOFF_TWR.toFixed(2)}：${(stages[0].thrustN / 1e6).toFixed(2)} MN 推力对 ${(liftoffMassKg / 1000).toFixed(0)} t 起飞质量不足`,
     );
   }
-  for (let i = 1; i < stages.length; i++) {
-    const ignitionMassKg = stackMassFrom(stages, i, payloadKg);
-    const twr = stages[i].thrustN / (ignitionMassKg * CONST.G0);
-    if (twr < MIN_UPPER_TWR) {
-      reasons.push(
-        `级 ${i + 1} 点火推重比 ${twr.toFixed(2)} < ${MIN_UPPER_TWR.toFixed(2)}：${(stages[i].thrustN / 1e6).toFixed(2)} MN 推力对 ${(ignitionMassKg / 1000).toFixed(0)} t 点火质量不足`,
-      );
-    }
-  }
+  // Upper-stage TWR is not a physical gate. A stage already near orbital
+  // velocity can thrust below its weight and still insert; the historical
+  // Saturn V S-IVB runs ~0.4 with a 140 t payload. The Δv budget above already
+  // prices the gravity loss that a low-TWR upper stage pays.
 
   // --- Thermal: chamber wall --------------------------------------------
   const componentBranches: { node: string; prob: number }[] = [];
@@ -261,7 +282,7 @@ export function validateLevelDesign(level: LevelSpec, design: LevelDesign): Feas
     wallTempsK.push(wall.wallHotK);
     if (wall.wallHotK > CHAMBER_LIMIT_K) {
       const mode = s.regenerativeCooling === false ? '无再生冷却' : '再生冷却不足';
-      reasons.push(
+      physicalReasons.push(
         `级 ${i + 1} 燃烧室壁温 ${wall.wallHotK.toFixed(0)} K > ${CHAMBER_LIMIT_K} K 铜衬里上限（${mode}）`,
       );
       componentBranches.push({
@@ -283,7 +304,7 @@ export function validateLevelDesign(level: LevelSpec, design: LevelDesign): Feas
   });
   const ploc = 1 - (1 - ascent.ploc) * (1 - RADIATION_TRANSIT_PROB);
   if (ploc > level.maxPloc) {
-    reasons.push(
+    levelReasons.push(
       `PLOC ${(ploc * 100).toFixed(2)}%（1/${Math.round(1 / ploc)}）超过门槛 1/${Math.round(1 / level.maxPloc)}（${(level.maxPloc * 100).toFixed(2)}%）`,
     );
   }
@@ -291,15 +312,15 @@ export function validateLevelDesign(level: LevelSpec, design: LevelDesign): Feas
   // --- Cost -------------------------------------------------------------
   const cost = estimateCost(level, stages, payloadKg, ploc);
   if (cost.total > level.budgetUsd) {
-    reasons.push(
+    levelReasons.push(
       `总成本 $${(cost.total / 1e6).toFixed(1)}M 超过 $${(level.budgetUsd / 1e6).toFixed(1)}M 预算（硬件 $${(cost.hardware / 1e6).toFixed(1)}M + 摊销 $${(cost.amortized / 1e6).toFixed(1)}M + 保险 $${(cost.insurance / 1e6).toFixed(1)}M + 失败期望 $${(cost.expectedFailure / 1e6).toFixed(1)}M）`,
     );
   }
 
-  return {
-    feasible: reasons.length === 0,
-    reasons,
-    metrics: {
+  return finish(
+    physicalReasons.length === 0 && levelReasons.length === 0,
+    physicalReasons.length === 0,
+    {
       totalDvMs: totalDv,
       requiredDvMs: level.requiredDvMs,
       liftoffTwr,
@@ -307,5 +328,5 @@ export function validateLevelDesign(level: LevelSpec, design: LevelDesign): Feas
       costUsd: cost.total,
       wallTempsK,
     },
-  };
+  );
 }

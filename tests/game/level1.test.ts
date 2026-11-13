@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { LEVEL_1, validateLevelDesign, type LevelStage } from '../../src/game/levels';
+import { ARCHETYPES } from '../../src/physics/archetypes';
 
 /**
  * Reference launcher for Level 1: two LOX/RP-1 stages, 220 t + 50 t propellant,
@@ -42,6 +43,8 @@ describe('Level 1 — 200 km crewed LEO', () => {
 
     expect(result.reasons).toEqual([]);
     expect(result.feasible).toBe(true);
+    expect(result.physicallyFeasible).toBe(true);
+    expect(result.physicalReasons).toEqual([]);
     expect(result.metrics?.totalDvMs).toBeGreaterThanOrEqual(LEVEL_1.requiredDvMs);
     expect(result.metrics?.ploc).toBeLessThanOrEqual(LEVEL_1.maxPloc);
     expect(result.metrics?.costUsd).toBeLessThanOrEqual(LEVEL_1.budgetUsd);
@@ -52,9 +55,10 @@ describe('Level 1 — 200 km crewed LEO', () => {
     const result = validateLevelDesign(LEVEL_1, { ...referenceDesign(), stages });
 
     expect(result.feasible).toBe(false);
+    expect(result.physicallyFeasible).toBe(false);
     // The failure must name the physical quantity, not just a boolean.
-    expect(result.reasons.some((r) => r.includes('Δv'))).toBe(true);
-    expect(result.reasons.some((r) => r.includes('缺口'))).toBe(true);
+    expect(result.physicalReasons.some((r) => r.includes('Δv'))).toBe(true);
+    expect(result.physicalReasons.some((r) => r.includes('缺口'))).toBe(true);
     expect(result.metrics?.totalDvMs).toBeLessThan(LEVEL_1.requiredDvMs);
   });
 
@@ -66,7 +70,8 @@ describe('Level 1 — 200 km crewed LEO', () => {
     const result = validateLevelDesign(LEVEL_1, { ...referenceDesign(), stages });
 
     expect(result.feasible).toBe(false);
-    expect(result.reasons.some((r) => r.includes('壁温') && r.includes('1000 K'))).toBe(true);
+    expect(result.physicallyFeasible).toBe(false);
+    expect(result.physicalReasons.some((r) => r.includes('壁温') && r.includes('1000 K'))).toBe(true);
     expect(result.metrics?.wallTempsK[0]).toBeGreaterThan(1000);
   });
 
@@ -77,7 +82,36 @@ describe('Level 1 — 200 km crewed LEO', () => {
     });
 
     expect(result.feasible).toBe(false);
-    expect(result.reasons.some((r) => r.includes('PLOC'))).toBe(true);
+    expect(result.physicallyFeasible).toBe(true);
+    expect(result.physicalReasons).toEqual([]);
+    expect(result.levelReasons.some((r) => r.includes('PLOC'))).toBe(true);
     expect(result.metrics?.ploc).toBeGreaterThan(LEVEL_1.maxPloc);
+  });
+
+  it('reports a physical design that only misses the budget', () => {
+    const result = validateLevelDesign(
+      { ...LEVEL_1, budgetUsd: 100e6 },
+      referenceDesign(),
+    );
+
+    expect(result.physicallyFeasible).toBe(true);
+    expect(result.feasible).toBe(false);
+    expect(result.physicalReasons).toEqual([]);
+    expect(result.levelReasons.some((r) => r.includes('预算'))).toBe(true);
+  });
+
+  it('keeps a historical Saturn V physically feasible while it misses the modern contract', () => {
+    const saturn = ARCHETYPES.find((a) => a.id === 'saturn_v')!;
+    const result = validateLevelDesign(LEVEL_1, {
+      stages: saturn.stages,
+      payloadKg: LEVEL_1.payloadKg,
+      escapeSystem: 'tower',
+    });
+
+    expect(result.physicallyFeasible).toBe(true);
+    expect(result.physicalReasons).toEqual([]);
+    expect(result.feasible).toBe(false);
+    expect(result.levelReasons.some((r) => r.includes('PLOC'))).toBe(true);
+    expect(result.levelReasons.some((r) => r.includes('预算'))).toBe(true);
   });
 });

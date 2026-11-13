@@ -5,7 +5,7 @@ category: decision
 status: active
 tags: [simulation, physics, rocket]
 created: "2026-11-09T23:28:13"
-updated: "2026-11-13T08:25:22"
+updated: "2026-11-13T12:29:37"
 ---
 
 <!-- compiled_truth -->
@@ -95,4 +95,10 @@ updated: "2026-11-13T08:25:22"
   kind: decision
   summary: "LEVEL 1 关卡契约定稿: 200 km LEO / 10 t / $400M 一次性 / PLOC ≤ 1/270 / 15 min; 允许 LOX-RP1、LOX-CH4、LOX-LH2、NTO-MMH, 级数上限 3. validateLevelDesign 输出具体物理量: Δv 缺口 m/s、Isp 包线、起飞/上级 TWR、燃烧室壁温、PLOC、总成本. 参考两级 LOX/RP1 设计总 Δv 9406 m/s, 仅余 6 m/s; 混合比偏离最优 5% 只损 Isp 0.09%(约 8 m/s) 即低于门槛. 无再生冷却壁温 3040 K > 1000 K."
   source: "src/game/levels.ts; tests/game/level1.test.ts"
+  affects: [crewed-spaceflight-sim]
+
+- time: 2026-11-13T12:29:37
+  kind: decision
+  summary: "历史可行性修正：Saturn V 的 S-II 推进剂 930 t 是把磅当千克（实际 456 t），S-IVB 110/13 t 改为 107/12 t。LH2 平均分子量 8.9 改为 13.6（富燃 J-2 排气），Isp 562 s 降到 454.5 s，回到 450–465 s 包线；Saturn V 带 140 t 载荷总 Δv 10.6 km/s。起飞 TWR 硬门槛 1.2 降到 1.1（物理下限 >1），上级 TWR 不再作为硬门槛（S-IVB 带 140 t 约 0.4）。validateLevelDesign 新增 physicallyFeasible/reasons 分类：历史 Saturn V 物理可行，但仍不满足第一关的 PLOC 0.67% 和 .1M 预算，面板分开显示物理与关卡两个判定。"
+  source: "src/physics/archetypes.ts; src/physics/propellants.ts; src/game/levels.ts; src/ui/LevelPanel.ts; tests/game/level1.test.ts"
   affects: [crewed-spaceflight-sim]

@@ -36,7 +36,7 @@ export const PROPELLANTS: Record<string, Propellant> = {
     ofTypical: 6.0,
     ispVacRange: [450, 465],
     tcK: 3580,
-    mGmol: 8.9,
+    mGmol: 13.6,
     rhoOx: 1141,
     rhoF: 70,
     gamma: 1.2,
