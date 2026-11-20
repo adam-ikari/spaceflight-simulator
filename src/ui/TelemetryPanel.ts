@@ -3,12 +3,13 @@ import { store, type SimState } from '../state/store';
 import { circularOrbitVelocity } from '../physics/OrbitalIntegrator';
 
 const CARD_STYLE =
-  'font:13px/1.5 system-ui,sans-serif;color:#e8eaed;background:#1b1f24;padding:1rem;border-radius:6px;min-width:220px';
-const ROW_STYLE = 'display:flex;justify-content:space-between;gap:1rem';
+  'font:12px/1.45 system-ui,sans-serif;color:#e8eaed;background:#1b1f24;padding:.75rem;border-radius:6px';
+const ROW_STYLE = 'display:flex;justify-content:space-between;gap:.5rem';
 
 export class TelemetryPanel {
   private container: HTMLElement;
   private unsubscribe?: () => void;
+  private detailsOpen = false;
 
   constructor(container: HTMLElement) {
     this.container = container;
@@ -17,6 +18,11 @@ export class TelemetryPanel {
   render(): void {
     if (typeof document === 'undefined') return;
     this.unsubscribe?.();
+    this.container.addEventListener('click', (event) => {
+      if ((event.target as HTMLElement).closest('summary')) {
+        this.detailsOpen = !this.detailsOpen;
+      }
+    });
     this.unsubscribe = store.subscribe((s) => this.draw(s));
     this.draw(store.get());
   }
@@ -25,18 +31,18 @@ export class TelemetryPanel {
     if (typeof document === 'undefined') return;
     this.container.innerHTML = `
 <div style="${CARD_STYLE}">
-  <h2 style="margin:0 0 .5rem;font-size:15px">遥测</h2>
-  <div style="${ROW_STYLE}"><span>阶段</span><b>${s.phase}</b></div>
-  <div style="${ROW_STYLE}"><span>时间</span><b>${s.t.toFixed(1)} s</b></div>
-  <div style="${ROW_STYLE}"><span>高度</span><b>${s.altitudeKm.toFixed(1)} km</b></div>
-  <div style="${ROW_STYLE}"><span>速度</span><b>${s.speedMs.toFixed(0)} m/s</b></div>
+  <div style="${ROW_STYLE}"><h2 style="margin:0;font-size:13px">遥测</h2><b>${s.body === 'MOON' ? '月球' : '地球'} · ${s.phase}</b></div>
+  <div style="${ROW_STYLE}"><span>时间</span><b>${s.t.toFixed(0)} s</b></div>
+  <div style="${ROW_STYLE}"><span>高度 / 速度</span><b>${s.altitudeKm.toFixed(0)} km · ${s.speedMs.toFixed(0)} m/s</b></div>
   ${this.orbitRows(s)}
-  <div style="${ROW_STYLE}"><span>机组损失概率（PLOC）</span><b>${(s.ploc * 100).toFixed(2)} %</b></div>
-  <div style="${ROW_STYLE}"><span>成本</span><b>$${(s.costUsd / 1e6).toFixed(2)} M</b></div>
-  <div style="${ROW_STYLE}"><span>燃料</span><b>${s.fuelPct.toFixed(1)} %</b></div>
-  ${this.computerRows(s)}
-  ${this.lifeRows(s)}
-  ${this.systemRows(s)}
+  <div style="${ROW_STYLE}"><span>PLOC / 成本</span><b>${(s.ploc * 100).toFixed(2)} % · $${(s.costUsd / 1e6).toFixed(1)} M</b></div>
+  <div style="${ROW_STYLE}"><span>燃料</span><b>${s.fuelPct.toFixed(0)} %</b></div>
+  <details ${this.detailsOpen ? 'open' : ''}>
+    <summary style="cursor:pointer;margin-top:.4rem;color:#8ab4f8">系统详情</summary>
+    ${this.computerRows(s)}
+    ${this.lifeRows(s)}
+    ${this.systemRows(s)}
+  </details>
 </div>`;
   }
 

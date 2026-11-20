@@ -9,5 +9,13 @@ export default defineConfig({
   build: {
     // Babylon ships a large core chunk; the warning is noise for this app.
     chunkSizeWarningLimit: 8000,
+    rollupOptions: {
+      output: {
+        // Cache the heavy renderer separately from frequently changed app code.
+        manualChunks(id) {
+          if (id.includes('node_modules/@babylonjs')) return 'babylon';
+        },
+      },
+    },
   },
 });

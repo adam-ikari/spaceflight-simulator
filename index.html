@@ -16,7 +16,7 @@
       }
       #app {
         display: grid;
-        grid-template-columns: minmax(0, 1fr) 360px;
+        grid-template-columns: minmax(0, 1fr) 300px;
         grid-template-rows: minmax(0, 1fr) auto;
         height: 100vh;
       }
@@ -55,17 +55,40 @@
       #controls button:hover {
         border-color: #8ab4f8;
       }
+      #controls select {
+        font: inherit;
+        padding: 0.25rem 0.4rem;
+        border: 1px solid #3c4043;
+        border-radius: 4px;
+        background: #1b1f24;
+        color: #e8eaed;
+      }
+      #loading {
+        position: fixed;
+        inset: 0;
+        z-index: 10;
+        display: grid;
+        place-items: center;
+        background: #05070f;
+        color: #8ab4f8;
+        font: 600 16px/1.4 system-ui, sans-serif;
+        letter-spacing: 0.08em;
+      }
     </style>
   </head>
   <body>
+    <div id="loading">正在加载航天模拟器…</div>
     <div id="app">
       <div id="scene"></div>
       <div id="side">
         <div id="brand" style="font:600 16px/1.4 system-ui,sans-serif;letter-spacing:.04em;color:#8ab4f8">
           航天项目模拟器
         </div>
-        <div id="designer"></div>
         <div id="telemetry"></div>
+        <details id="designer-panel">
+          <summary style="cursor:pointer;color:#8ab4f8">火箭设计器</summary>
+          <div id="designer"></div>
+        </details>
       </div>
     </div>
     <div id="controls">

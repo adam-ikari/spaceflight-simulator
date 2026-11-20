@@ -17,6 +17,7 @@ function el(id: string): HTMLElement {
 
 function boot(): void {
   const scene = new Scene(el('scene'));
+  document.getElementById('loading')?.remove();
   const playback = new PlaybackLoop(10);
 
   // Designer pushes the chosen stack into physics and rendering; changing it
