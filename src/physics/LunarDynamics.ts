@@ -1,4 +1,5 @@
 import { CONST } from './constants';
+import { stepLunarRK4Wasm } from './LunarKernel';
 import type { OrbitState, Vec3 } from './OrbitalIntegrator';
 
 export interface TransferSolution {
@@ -75,32 +76,13 @@ export function lunarAcceleration(pos: Vec3, tSec: number): Vec3 {
 
 /** RK4 step with the acceleration re-evaluated at each intermediate epoch. */
 export function stepLunarRK4(state: OrbitState, dtSec: number): OrbitState {
-  const deriv = (s: OrbitState): { dPos: Vec3; dVel: Vec3; dT: number } => ({
-    dPos: s.vel,
-    dVel: lunarAcceleration(s.pos, s.t),
-    dT: 1,
-  });
-  const advance = (
-    s: OrbitState,
-    k: { dPos: Vec3; dVel: Vec3; dT: number },
-    h: number,
-  ): OrbitState => ({
-    pos: addVec(s.pos, scaleVec(k.dPos, h)),
-    vel: addVec(s.vel, scaleVec(k.dVel, h)),
-    t: s.t + k.dT * h,
-  });
-  const k1 = deriv(state);
-  const k2 = deriv(advance(state, k1, dtSec / 2));
-  const k3 = deriv(advance(state, k2, dtSec / 2));
-  const k4 = deriv(advance(state, k3, dtSec));
-  const next = advance(state, k1, dtSec / 6);
-  for (const [k, weight] of [[k2, 2 / 6], [k3, 2 / 6], [k4, 1 / 6]] as const) {
-    next.pos = addVec(next.pos, scaleVec(k.dPos, dtSec * weight));
-    next.vel = addVec(next.vel, scaleVec(k.dVel, dtSec * weight));
-    next.t += k.dT * dtSec * weight;
-  }
-  next.t = state.t + dtSec;
-  return next;
+  return stepLunarRK4Wasm(
+    state,
+    dtSec,
+    REFERENCE_TRANSFER.moonPhaseLeadRad,
+    CONST.MOON_OMEGA,
+    CONST.MOON_SMA_M,
+  );
 }
 
 /** Moon-relative position, velocity, distance and speed at a given epoch. */

@@ -1,7 +1,9 @@
 import { defineConfig } from 'vite';
+import { inlineWasmBytes } from './viteWasmPlugin';
 
 export default defineConfig({
   root: '.',
+  plugins: [inlineWasmBytes()],
   // Relative asset URLs keep the build valid both at the domain root and under
   // a GitHub Pages project path (https://<user>.github.io/<repo>/).
   base: './',

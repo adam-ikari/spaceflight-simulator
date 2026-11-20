@@ -5,7 +5,7 @@ category: decision
 status: active
 tags: [simulation, physics, rocket]
 created: "2026-11-09T23:28:13"
-updated: "2026-11-20T18:19:04"
+updated: "2026-11-20T23:11:26"
 ---
 
 <!-- compiled_truth -->
@@ -148,4 +148,10 @@ updated: "2026-11-20T18:19:04"
   kind: decision
   summary: "项目交互收敛为阿波罗 11 载人登月单项任务：移除火箭设计器与任务选择器，页面加载显示开始播放按钮，默认土星五号 + 45 t CSM/LM 载荷；HUD 标注 Apollo 11/CSM Columbia/LM Eagle 与当前航天器模块。"
   source: "src/main.ts;index.html;src/ui/TelemetryPanel.ts;README.md"
+  affects: [crewed-spaceflight-sim]
+
+- time: 2026-11-20T23:11:26
+  kind: decision
+  summary: "地月转移 RK4 从 JS 移至 Rust/WASM 内核：wasm/lunar_kernel.rs 编译为 8.4 KB wasm，Vite 插件在构建时内联为字节数组，保留原有两体+月历物理方程；基准原始内核比 JS 快 5.67 倍。保留 Babylon 为独立渲染 chunk，WASM 不加速渲染。"
+  source: "wasm/lunar_kernel.rs;src/physics/LunarKernel.ts;viteWasmPlugin.ts;src/physics/LunarDynamics.ts"
   affects: [crewed-spaceflight-sim]

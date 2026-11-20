@@ -6,7 +6,8 @@
     "dev": "vite",
     "build": "tsc && vite build",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "build:wasm": "rustc --edition 2021 --target wasm32-unknown-unknown -C opt-level=3 -C panic=abort --crate-type cdylib wasm/lunar_kernel.rs -o /tmp/lunar-raw.wasm && wasm-opt -Oz --strip-debug /tmp/lunar-raw.wasm -o src/physics/lunar_kernel.wasm"
   },
   "dependencies": {
     "@babylonjs/core": "^9.35.0",
