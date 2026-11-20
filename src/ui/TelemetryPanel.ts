@@ -1,15 +1,29 @@
-/** TelemetryPanel — live phase/altitude/speed/PLOC/cost/fuel readout subscribed to the store. */
+/** TelemetryPanel — mission-control HUD: phase timeline, metric cards, expandable systems. */
 import { store, type SimState } from '../state/store';
 import { circularOrbitVelocity } from '../physics/OrbitalIntegrator';
 
-const CARD_STYLE =
-  'font:12px/1.45 system-ui,sans-serif;color:#e8eaed;background:#1b1f24;padding:.75rem;border-radius:6px';
-const ROW_STYLE = 'display:flex;justify-content:space-between;gap:.5rem';
+interface PhaseGroup {
+  label: string;
+  phases: string[];
+}
+
+const PHASE_GROUPS: PhaseGroup[] = [
+  { label: '发射', phases: ['PAD', 'LIFTOFF', 'ASCENT', 'STAGE_SEP', 'ORBIT_INSERT'] },
+  { label: '地球轨道', phases: ['ORBIT', 'PARK', 'RENDEZVOUS', 'DEORBIT'] },
+  { label: '地月转移', phases: ['TLI', 'TRANSFER', 'LOI'] },
+  { label: '月面作业', phases: ['LUNAR_ORBIT', 'DESCENT', 'MOON_LANDING', 'LUNAR_LAUNCH'] },
+  { label: '返回着陆', phases: ['TEI', 'EARTH_RETURN', 'EARTH_ENTRY', 'LANDING', 'DONE'] },
+];
+
+function metric(label: string, value: string, colour = ''): string {
+  return `<div class="metric-card"><span>${label}</span><b${colour ? ` style="color:${colour}"` : ''}>${value}</b></div>`;
+}
 
 export class TelemetryPanel {
   private container: HTMLElement;
   private unsubscribe?: () => void;
   private detailsOpen = false;
+  private bound = false;
 
   constructor(container: HTMLElement) {
     this.container = container;
@@ -17,12 +31,15 @@ export class TelemetryPanel {
 
   render(): void {
     if (typeof document === 'undefined') return;
+    if (!this.bound) {
+      this.container.addEventListener('click', (event) => {
+        if ((event.target as HTMLElement).closest('.hud-detail summary')) {
+          this.detailsOpen = !this.detailsOpen;
+        }
+      });
+      this.bound = true;
+    }
     this.unsubscribe?.();
-    this.container.addEventListener('click', (event) => {
-      if ((event.target as HTMLElement).closest('summary')) {
-        this.detailsOpen = !this.detailsOpen;
-      }
-    });
     this.unsubscribe = store.subscribe((s) => this.draw(s));
     this.draw(store.get());
   }
@@ -30,20 +47,35 @@ export class TelemetryPanel {
   private draw(s: SimState): void {
     if (typeof document === 'undefined') return;
     this.container.innerHTML = `
-<div style="${CARD_STYLE}">
-  <div style="${ROW_STYLE}"><h2 style="margin:0;font-size:13px">遥测</h2><b>${s.body === 'MOON' ? '月球' : '地球'} · ${s.phase}</b></div>
-  <div style="${ROW_STYLE}"><span>时间</span><b>${s.t.toFixed(0)} s</b></div>
-  <div style="${ROW_STYLE}"><span>高度 / 速度</span><b>${s.altitudeKm.toFixed(0)} km · ${s.speedMs.toFixed(0)} m/s</b></div>
+<div class="hud-top">
+  <div class="hud-brand">航天项目模拟器</div>
+  <div class="phase-track">${this.timeline(s.phase)}</div>
+  <div class="hud-clock">T+${s.t.toFixed(0)} s</div>
+</div>
+<div class="metric-grid">
+  ${metric('天体 / 阶段', `${s.body === 'MOON' ? '月球' : '地球'} · ${s.phase}`)}
+  ${metric('高度', `${s.altitudeKm.toFixed(1)} km`)}
+  ${metric('速度', `${s.speedMs.toFixed(0)} m/s`)}
+  ${metric('燃料', `${s.fuelPct.toFixed(1)} %`)}
+  ${metric('PLOC', `${(s.ploc * 100).toFixed(2)} %`)}
+  ${metric('成本', `$${(s.costUsd / 1e6).toFixed(1)} M`)}
+</div>
+<details class="hud-detail"${this.detailsOpen ? ' open' : ''}>
+  <summary>系统详情</summary>
+  ${this.computerRows(s)}
+  ${this.lifeRows(s)}
   ${this.orbitRows(s)}
-  <div style="${ROW_STYLE}"><span>PLOC / 成本</span><b>${(s.ploc * 100).toFixed(2)} % · $${(s.costUsd / 1e6).toFixed(1)} M</b></div>
-  <div style="${ROW_STYLE}"><span>燃料</span><b>${s.fuelPct.toFixed(0)} %</b></div>
-  <details ${this.detailsOpen ? 'open' : ''}>
-    <summary style="cursor:pointer;margin-top:.4rem;color:#8ab4f8">系统详情</summary>
-    ${this.computerRows(s)}
-    ${this.lifeRows(s)}
-    ${this.systemRows(s)}
-  </details>
-</div>`;
+  ${this.systemRows(s)}
+</details>`;
+  }
+
+  /** Five mission milestones share one timeline across LEO and lunar profiles. */
+  private timeline(phase: string): string {
+    const active = Math.max(0, PHASE_GROUPS.findIndex((g) => g.phases.includes(phase)));
+    return PHASE_GROUPS.map((g, i) => {
+      const state = i === active ? 'active' : i < active ? 'done' : '';
+      return `<div class="phase-step ${state}">${g.label}</div>`;
+    }).join('');
   }
 
   /** Onboard flight-computer programs run continuously; their cycles are live. */
@@ -53,10 +85,10 @@ export class TelemetryPanel {
     const rows = programs
       .map(
         (p) =>
-          `<div style="${ROW_STYLE}"><span>${p.name}</span><b style="color:${p.healthy ? '#2e7d32' : '#c62828'}">${p.cycles} · ${p.lastOutput}</b></div>`,
+          `<div class="detail-row"><span>${p.name}</span><b style="color:${p.healthy ? '#2e7d32' : '#c62828'}">${p.cycles} · ${p.lastOutput}</b></div>`,
       )
       .join('');
-    return `<div style="margin-top:.6rem;border-top:1px solid #3c4043;padding-top:.45rem;font-weight:600">机载计算机</div>${rows}`;
+    return `<div class="detail-section">机载计算机</div>${rows}`;
   }
 
   /** Life support, radiation dose and chemistry-driven fuel state. */
@@ -64,11 +96,10 @@ export class TelemetryPanel {
     const life = s.life;
     if (!life) return '';
     return `
-  <div style="margin-top:.6rem;border-top:1px solid #3c4043;padding-top:.45rem;font-weight:600">生命保障</div>
-  <div style="${ROW_STYLE}"><span>氧气</span><b>${life.o2RemainKg.toFixed(1)} kg</b></div>
-  <div style="${ROW_STYLE}"><span>水</span><b>${life.waterRemainKg.toFixed(1)} kg</b></div>
-  <div style="${ROW_STYLE}"><span>CO₂</span><b>${life.co2Pct.toFixed(3)} %</b></div>
-  <div style="${ROW_STYLE}"><span>辐射剂量</span><b>${(s.radiationMsv ?? 0).toFixed(3)} mSv</b></div>`;
+  <div class="detail-section">生命保障</div>
+  <div class="detail-row"><span>氧气 / 水</span><b>${life.o2RemainKg.toFixed(1)} / ${life.waterRemainKg.toFixed(1)} kg</b></div>
+  <div class="detail-row"><span>CO₂</span><b>${life.co2Pct.toFixed(3)} %</b></div>
+  <div class="detail-row"><span>辐射剂量</span><b>${(s.radiationMsv ?? 0).toFixed(3)} mSv</b></div>`;
   }
 
   /**
@@ -87,12 +118,12 @@ export class TelemetryPanel {
       .slice(0, 5)
       .map(
         (c) =>
-          `<div style="${ROW_STYLE}"><span>${c.label}</span><b style="color:${colour(c.utilisation)}">${c.tempK.toFixed(0)} K · ${(c.utilisation * 100).toFixed(0)}%</b></div>`,
+          `<div class="detail-row"><span>${c.label}</span><b style="color:${colour(c.utilisation)}">${c.tempK.toFixed(0)} K · ${(c.utilisation * 100).toFixed(0)}%</b></div>`,
       )
       .join('');
     const pogo =
       y.pogoG > 0.001
-        ? `<div style="${ROW_STYLE}"><span>pogo</span><b>${y.pogoG.toFixed(2)} g · ${y.pogoHz.toFixed(1)} Hz</b></div>`
+        ? `<div class="detail-row"><span>pogo</span><b>${y.pogoG.toFixed(2)} g · ${y.pogoHz.toFixed(1)} Hz</b></div>`
         : '';
     const failures = y.failures.length
       ? `<div style="margin-top:.25rem;color:#c62828">超限：${y.failures
@@ -101,21 +132,19 @@ export class TelemetryPanel {
           .join('；')}</div>`
       : '';
     return `
-  <div style="margin-top:.6rem;border-top:1px solid #3c4043;padding-top:.45rem;font-weight:600">分系统</div>
+  <div class="detail-section">分系统</div>
   ${rows}
-  <div style="${ROW_STYLE}"><span>热防护</span><b style="color:${colour(y.tpsK / 3500)}">${y.tpsK.toFixed(0)} K</b></div>
+  <div class="detail-row"><span>热防护</span><b style="color:${colour(y.tpsK / 3500)}">${y.tpsK.toFixed(0)} K</b></div>
   ${pogo}
-  <div style="${ROW_STYLE}"><span>随机振动</span><b>${y.randomGrms.toFixed(1)} g_rms</b></div>
-  <div style="${ROW_STYLE}"><span>弯曲频率</span><b>${y.bendingHz.toFixed(2)} Hz</b></div>
-  <div style="${ROW_STYLE}"><span>蒸发损失</span><b>${y.boiloffKg.toFixed(1)} kg · ${y.boiloffPct.toFixed(3)} %</b></div>
+  <div class="detail-row"><span>随机振动</span><b>${y.randomGrms.toFixed(1)} g_rms</b></div>
+  <div class="detail-row"><span>弯曲频率</span><b>${y.bendingHz.toFixed(2)} Hz</b></div>
+  <div class="detail-row"><span>蒸发损失</span><b>${y.boiloffKg.toFixed(1)} kg · ${y.boiloffPct.toFixed(3)} %</b></div>
   ${failures}`;
   }
 
   /**
-   * Circular-speed comparison (plan Task 16 acceptance): the RK4 state after
-   * insertion should sit within 0.1% of sqrt(μ/r) at the current altitude.
-   * J2 adds a physical ±0.15% wobble in LEO, so the UI marks green inside
-   * 0.2% rather than the plan's 0.1% insertion tolerance.
+   * Circular-speed comparison: green inside 0.2 % because J2 adds a physical
+   * ±0.15 % wobble in LEO.
    */
   private orbitRows(s: SimState): string {
     if (s.altitudeKm < 100) return '';
@@ -123,7 +152,8 @@ export class TelemetryPanel {
     const devPct = vc > 0 ? ((s.speedMs - vc) / vc) * 100 : 0;
     const colour = Math.abs(devPct) < 0.2 ? '#2e7d32' : '#f9a825';
     return `
-  <div style="${ROW_STYLE}"><span>圆轨道速度</span><b>${vc.toFixed(0)} m/s</b></div>
-  <div style="${ROW_STYLE}"><span>速度偏差</span><b style="color:${colour}">${devPct >= 0 ? '+' : ''}${devPct.toFixed(2)} %</b></div>`;
+  <div class="detail-section">轨道</div>
+  <div class="detail-row"><span>圆轨道速度</span><b>${vc.toFixed(0)} m/s</b></div>
+  <div class="detail-row"><span>速度偏差</span><b style="color:${colour}">${devPct >= 0 ? '+' : ''}${devPct.toFixed(2)} %</b></div>`;
   }
 }

@@ -4,7 +4,7 @@
  */
 import { PlaybackLoop } from './sim/PlaybackLoop';
 import { Scene } from './render/Scene';
-import type { Mission, ViewMode } from './render/Scene';
+import type { ViewMode } from './render/Scene';
 import { RocketDesigner } from './ui/RocketDesigner';
 import { TelemetryPanel } from './ui/TelemetryPanel';
 import { store } from './state/store';
@@ -18,7 +18,8 @@ function el(id: string): HTMLElement {
 function boot(): void {
   const scene = new Scene(el('scene'));
   document.getElementById('loading')?.remove();
-  const playback = new PlaybackLoop(10);
+  const playback = new PlaybackLoop(10, 'lunar');
+  scene.setMission('lunar');
 
   // Designer pushes the chosen stack into physics and rendering; changing it
   // restarts playback so the vehicle never swaps mid-flight.
@@ -44,20 +45,33 @@ function boot(): void {
     pause.textContent = '暂停';
   });
 
-  const mission = document.getElementById('mission') as HTMLSelectElement | null;
-  mission?.addEventListener('change', () => {
-    const next = mission.value as Mission;
-    playback.setMission(next);
-    scene.setMission(next);
-    pause.textContent = '暂停';
-  });
-
   const view = document.getElementById('view') as HTMLSelectElement | null;
   view?.addEventListener('change', () => scene.setView(view.value as ViewMode));
 
   const warp = document.getElementById('warp') as HTMLSelectElement | null;
   warp?.addEventListener('change', () => playback.setWarp(Number(warp.value)));
   if (warp) playback.setWarp(Number(warp.value));
+
+  // Keyboard shortcuts keep the views reachable without leaving the canvas.
+  window.addEventListener('keydown', (event) => {
+    const target = event.target as HTMLElement | null;
+    if (target && ['INPUT', 'SELECT', 'TEXTAREA'].includes(target.tagName)) return;
+    if (event.code === 'Space') {
+      event.preventDefault();
+      if (!playback.finished) pause.click();
+    } else if (event.key === 'r' || event.key === 'R') {
+      el('replay').click();
+    } else if (view && /^[1-6]$/.test(event.key)) {
+      view.selectedIndex = Number(event.key) - 1;
+      view.dispatchEvent(new Event('change'));
+    } else if (warp && (event.key === '[' || event.key === ']')) {
+      const options = [...warp.options];
+      const index = options.findIndex((o) => o.value === warp.value);
+      const next = Math.max(0, Math.min(options.length - 1, index + (event.key === '[' ? -1 : 1)));
+      warp.selectedIndex = next;
+      warp.dispatchEvent(new Event('change'));
+    }
+  });
 
   let last = performance.now();
   const frame = (now: number): void => {

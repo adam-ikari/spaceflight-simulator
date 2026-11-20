@@ -6,63 +6,108 @@
     <title>航天项目模拟器</title>
     <link rel="icon" href="data:," />
     <style>
-      html,
-      body {
+      html, body {
         margin: 0;
         height: 100%;
+        overflow: hidden;
         background: #05070f;
         color: #e8eaed;
         font: 13px/1.4 system-ui, sans-serif;
       }
-      #app {
-        display: grid;
-        grid-template-columns: minmax(0, 1fr) 300px;
-        grid-template-rows: minmax(0, 1fr) auto;
-        height: 100vh;
+      #scene { position: fixed; inset: 0; }
+      #scene canvas { display: block; }
+      #telemetry { position: fixed; inset: 0; z-index: 2; pointer-events: none; }
+      #side { position: fixed; top: 12px; right: 12px; width: 280px; z-index: 3; }
+      #side summary, #telemetry summary { cursor: pointer; color: #8ab4f8; }
+      #designer-panel {
+        background: rgba(15, 20, 30, .88);
+        border: 1px solid #303642;
+        border-radius: 6px;
+        padding: .6rem .7rem;
       }
-      #scene {
-        grid-row: 1 / 3;
-        min-height: 0;
-        min-width: 0;
-      }
-      #scene canvas {
-        display: block;
-      }
-      #side {
+      #designer-panel[open] { max-height: calc(100vh - 96px); overflow: auto; }
+      .hud-top {
+        position: absolute;
+        top: 12px;
+        left: 12px;
+        right: 304px;
         display: flex;
-        flex-direction: column;
-        gap: 0.75rem;
-        padding: 0.75rem;
-        overflow: auto;
-        min-height: 0;
+        align-items: center;
+        gap: 12px;
+        padding: .5rem .75rem;
+        background: rgba(10, 14, 22, .86);
+        border: 1px solid #303642;
+        border-radius: 6px;
+        backdrop-filter: blur(6px);
       }
+      .hud-brand { font-weight: 700; color: #8ab4f8; white-space: nowrap; }
+      .phase-track { display: flex; flex: 1; gap: 4px; min-width: 0; }
+      .phase-step {
+        flex: 1;
+        padding: .25rem .15rem;
+        text-align: center;
+        color: #7f8794;
+        border-radius: 3px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .phase-step.done { color: #8ab4f8; }
+      .phase-step.active { background: #8ab4f8; color: #07101c; font-weight: 700; }
+      .hud-clock { font-variant-numeric: tabular-nums; white-space: nowrap; }
+      .metric-grid {
+        position: absolute;
+        top: 76px;
+        left: 12px;
+        display: grid;
+        grid-template-columns: repeat(2, 142px);
+        gap: 6px;
+      }
+      .metric-card {
+        padding: .45rem .6rem;
+        background: rgba(10, 14, 22, .82);
+        border: 1px solid #303642;
+        border-left: 2px solid #8ab4f8;
+        border-radius: 5px;
+      }
+      .metric-card span { display: block; color: #9aa0a6; font-size: 11px; }
+      .metric-card b { display: block; font-size: 17px; font-variant-numeric: tabular-nums; }
+      .hud-detail {
+        position: absolute;
+        right: 12px;
+        bottom: 60px;
+        width: 280px;
+        max-height: 52vh;
+        overflow: auto;
+        pointer-events: auto;
+        background: rgba(10, 14, 22, .9);
+        border: 1px solid #303642;
+        border-radius: 6px;
+        padding: .55rem .7rem;
+      }
+      .hud-detail[open] { padding-bottom: .8rem; }
+      .detail-section { margin-top: .5rem; border-top: 1px solid #303642; padding-top: .4rem; font-weight: 600; }
+      .detail-row { display: flex; justify-content: space-between; gap: .5rem; font-weight: 400; }
       #controls {
         position: fixed;
-        left: 0.75rem;
-        bottom: 0.75rem;
+        left: 12px;
+        bottom: 12px;
+        z-index: 4;
         display: flex;
-        gap: 0.5rem;
+        gap: .4rem;
+        align-items: center;
       }
-      #controls button {
+      #controls label { display: flex; align-items: center; gap: .25rem; }
+      #controls button, #controls select {
         font: inherit;
-        padding: 0.4rem 0.9rem;
+        padding: .3rem .55rem;
         border: 1px solid #3c4043;
         border-radius: 4px;
         background: #1b1f24;
         color: #e8eaed;
         cursor: pointer;
       }
-      #controls button:hover {
-        border-color: #8ab4f8;
-      }
-      #controls select {
-        font: inherit;
-        padding: 0.25rem 0.4rem;
-        border: 1px solid #3c4043;
-        border-radius: 4px;
-        background: #1b1f24;
-        color: #e8eaed;
-      }
+      #controls button:hover, #controls select:hover { border-color: #8ab4f8; }
       #loading {
         position: fixed;
         inset: 0;
@@ -72,33 +117,22 @@
         background: #05070f;
         color: #8ab4f8;
         font: 600 16px/1.4 system-ui, sans-serif;
-        letter-spacing: 0.08em;
+        letter-spacing: .08em;
       }
     </style>
   </head>
   <body>
     <div id="loading">正在加载航天模拟器…</div>
-    <div id="app">
-      <div id="scene"></div>
-      <div id="side">
-        <div id="brand" style="font:600 16px/1.4 system-ui,sans-serif;letter-spacing:.04em;color:#8ab4f8">
-          航天项目模拟器
-        </div>
-        <div id="telemetry"></div>
-        <details id="designer-panel">
-          <summary style="cursor:pointer;color:#8ab4f8">火箭设计器</summary>
-          <div id="designer"></div>
-        </details>
-      </div>
-    </div>
+    <div id="scene"></div>
+    <div id="telemetry"></div>
+    <aside id="side">
+      <details id="designer-panel">
+        <summary>火箭设计器</summary>
+        <div id="designer"></div>
+      </details>
+    </aside>
     <div id="controls">
-      <label for="mission" style="display:flex;align-items:center;gap:.3rem">任务
-        <select id="mission">
-          <option value="leo" selected>近地轨道</option>
-          <option value="lunar">载人登月</option>
-        </select>
-      </label>
-      <label for="view" style="display:flex;align-items:center;gap:.3rem">视角
+      <label for="view">视角
         <select id="view">
           <option value="control" selected>指挥室视角</option>
           <option value="orbit">轨道视角</option>
@@ -108,7 +142,7 @@
           <option value="overview">总览视角</option>
         </select>
       </label>
-      <label for="warp" style="display:flex;align-items:center;gap:.3rem">倍速
+      <label for="warp">倍速
         <select id="warp">
           <option value="1">1×</option>
           <option value="10" selected>10×</option>
