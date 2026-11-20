@@ -153,8 +153,8 @@ describe('PlaybackLoop', () => {
 
 **Steps:**
 - [ ] **Step 1: 改 `index.html`** — 标题/品牌改“航天项目模拟器”；删除 `#launch`、`#abort`、`#deorbit` 按钮；新增 `#pause`（“暂停”，点击后文案切“继续”）与 `#replay`（“重播”）；保留视角/倍速下拉。
-- [ ] **Step 2: 改 `src/main.ts`** — 用 `PlaybackLoop` 替换 `GameLoop`；删除三个决策监听；接 `#pause` → `pause()/resume()` 并切按钮文案，`#replay` → `reset()`；设计器回调内 `scene.setVehicle(...)` 之后调用 `playback.setVehicle(...)`（会重置播放）；RAF 每帧 `playback.tick(dt)` 后用 `playback.director`（Task 2 的 getter）读取 `positionKm()` / `phase` 同步场景。
-- [ ] **Step 3: 改 `src/ui/RocketDesigner.ts`** — 删除 `LEO_DV` 常量、`validateRocket`/`RocketValidation` import、`reachable`/`verdictColor`/`verdict` 与 verdict DOM；保留各级比冲/Δv/推重比读数和物理校验错误/警告；文件头注释删除“9.4 km/s LEO verdict”。
+- [ ] **Step 2: 改 `src/main.ts`** — 用 `PlaybackLoop` 替换 `GameLoop`；删除三个决策监听；接 `#pause` → `pause()/resume()` 并切按钮文案，`#replay` → `reset()`；设计器回调内先 `playback.setVehicle(...)`（会重置播放）再 `scene.setVehicle(...)`；RAF 每帧 `playback.tick(dt)` 后用 `playback.director`（Task 2 的 getter）读取 `positionKm()` / `phase` 同步场景。
+- [ ] **Step 3: 改 `src/ui/RocketDesigner.ts`** — 删除 `LEO_DV` 常量与 `reachable`/`verdictColor`/`verdict` 及 verdict DOM；保留 `validateRocket`/`RocketValidation`（物理校验错误/警告）、各级比冲/Δv/推重比读数；文件头注释删除“9.4 km/s LEO verdict”。
 - [ ] **Step 4: 构建** — `pnpm build`；Expected: PASS。
 - [ ] **Step 5: 浏览器验证** — 启动 `pnpm dev`，打开首页：首帧自动进入 LIFTOFF（无点击）；视角切换在空中生效；暂停后 `t` 停住但视角仍可切；重播后回到 LIFTOFF 且 `t≈0`；快进到 LANDING 后画面停住。Expected: 五项均成立。
 

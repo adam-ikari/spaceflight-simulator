@@ -28,6 +28,7 @@ function boot(): void {
 
   const pause = el('pause') as HTMLButtonElement;
   pause.addEventListener('click', () => {
+    if (playback.finished) return;
     if (pause.textContent === '暂停') {
       playback.pause();
       pause.textContent = '继续';
@@ -53,6 +54,8 @@ function boot(): void {
     const dt = Math.min(Math.max(0, (now - last) / 1000), 0.1);
     last = now;
     playback.tick(dt);
+    pause.disabled = playback.finished;
+    if (playback.finished) pause.textContent = '已结束';
     const director = playback.director;
     const pos = director.positionKm();
     scene.setPhase(director.phase);

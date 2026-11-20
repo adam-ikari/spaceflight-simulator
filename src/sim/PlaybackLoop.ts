@@ -32,7 +32,7 @@ export class PlaybackLoop {
   private wallDwell = 0;
   private physicsClock = 0;
   private paused = false;
-  private finished = false;
+  private stopped = false;
   private vehicle: Parameters<PhysicsDirector['setVehicle']> | null = null;
 
   constructor(warp = 1) {
@@ -48,6 +48,10 @@ export class PlaybackLoop {
     return this.d.phase;
   }
 
+  get finished(): boolean {
+    return this.stopped;
+  }
+
   /** Restart from liftoff with the last configured vehicle. */
   reset(): void {
     this.d = new PhysicsDirector();
@@ -56,7 +60,7 @@ export class PlaybackLoop {
     this.wallDwell = 0;
     this.physicsClock = 0;
     this.paused = false;
-    this.finished = false;
+    this.stopped = false;
     this.sync();
   }
 
@@ -96,7 +100,7 @@ export class PlaybackLoop {
 
   /** One step; `dtWallSec` is real time, warped only for physics. */
   tick(dtWallSec: number): void {
-    if (this.paused || this.finished) return;
+    if (this.paused || this.stopped) return;
     const wall = Math.max(0, dtWallSec);
     const dt = wall * this.warp;
     this.d.step(dt);
@@ -146,7 +150,7 @@ export class PlaybackLoop {
         break;
       case 'LANDING':
         this.wallDwell += wall;
-        if (this.wallDwell >= LANDING_DWELL_S) this.finished = true;
+        if (this.wallDwell >= LANDING_DWELL_S) this.stopped = true;
         break;
       default:
         break;

@@ -45,6 +45,18 @@ describe('PlaybackLoop', () => {
     expect(store.get().t).toBeGreaterThan(t);
   });
 
+  it('reset after finish clears the stopped flag and replays', () => {
+    const loop = new PlaybackLoop(10);
+    for (let i = 0; i < 4000 && loop.phase !== 'LANDING'; i++) loop.tick(0.1);
+    for (let i = 0; i < 60; i++) loop.tick(0.1);
+    expect(loop.finished).toBe(true);
+    loop.reset();
+    expect(loop.finished).toBe(false);
+    expect(loop.phase).toBe('LIFTOFF');
+    loop.tick(0.1);
+    expect(store.get().t).toBeGreaterThan(0);
+  });
+
   it('setVehicle restarts playback from LIFTOFF', () => {
     const loop = new PlaybackLoop(10);
     for (let i = 0; i < 20; i++) loop.tick(0.1);
