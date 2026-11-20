@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>航天模拟器</title>
+    <title>航天项目模拟器</title>
     <link rel="icon" href="data:," />
     <style>
       html,
@@ -67,9 +67,8 @@
       <div id="scene"></div>
       <div id="side">
         <div id="brand" style="font:600 16px/1.4 system-ui,sans-serif;letter-spacing:.04em;color:#8ab4f8">
-          航天模拟器
+          航天项目模拟器
         </div>
-        <div id="level"></div>
         <div id="designer"></div>
         <div id="telemetry"></div>
       </div>
@@ -92,9 +91,8 @@
           <option value="50">50×</option>
         </select>
       </label>
-      <button id="launch" type="button">发射</button>
-      <button id="abort" type="button">中止</button>
-      <button id="deorbit" type="button">离轨</button>
+      <button id="pause" type="button">暂停</button>
+      <button id="replay" type="button">重播</button>
     </div>
     <script type="module" src="/src/main.ts"></script>
   </body>

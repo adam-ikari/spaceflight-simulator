@@ -1,6 +1,6 @@
 /**
  * RocketDesigner — pick an archetype/mission/concept, edit stage parameters,
- * and see Isp/Δv/TWR plus the 9.4 km/s LEO verdict recomputed live.
+ * and see Isp/Δv/TWR plus physical validation recomputed live.
  * Minimal DOM, no framework (DESIGN.md §4a/§4b/§6f).
  */
 import { ARCHETYPES } from '../physics/archetypes';
@@ -11,7 +11,6 @@ import { computeEngine } from '../physics/PropulsionEngine';
 import { validateRocket, type StageSpec, type RocketValidation } from '../physics/RocketEquation';
 import { CONST } from '../physics/constants';
 
-const LEO_DV = 9400;
 const FIELD_STYLE =
   'display:flex;gap:.5rem;align-items:center;justify-content:space-between;margin:.15rem 0';
 const INPUT_STYLE = 'width:9rem';
@@ -253,14 +252,8 @@ export class RocketDesigner {
 
     const errors = [...(validation?.errors ?? []), ...computeErrors];
     const warnings = validation?.warnings ?? [];
-    const reachable = validation?.ok === true && (validation?.totalDv ?? 0) >= LEO_DV;
-    const verdictColor = reachable ? '#2e7d32' : '#c62828';
-    const verdict = reachable
-      ? '近地轨道 9.4 km/s：可达'
-      : '近地轨道 9.4 km/s：不可达';
 
     return `
-<div style="color:${verdictColor};font-weight:700">${verdict}</div>
 <div style="margin-top:.4rem">总 Δv: ${((validation?.totalDv ?? 0) / 1000).toFixed(2)} km/s</div>
 <div style="margin-top:.3rem">${rows.join('')}</div>
 ${warnings.length ? `<div style="margin-top:.4rem;color:#f9a825">${warnings.join('<br>')}</div>` : ''}

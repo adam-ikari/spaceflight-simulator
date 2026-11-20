@@ -5,27 +5,27 @@ category: decision
 status: active
 tags: [simulation, physics, rocket]
 created: "2026-11-09T23:28:13"
-updated: "2026-11-13T13:44:39"
+updated: "2026-11-20T12:19:43"
 ---
 
 <!-- compiled_truth -->
-## 目标与关卡
+## 目标与形态（2026-11-20 反转）
 
-模拟器要回答的是“这套火箭方案能剩下多少余量”，不是复刻某一枚火箭的外观。第一关固定 200 km LEO、10 t 载荷、$400M 一次性预算、PLOC ≤ 1/270、≤15 min，推进剂限 LOX/RP-1、LOX/CH4、LOX/LH2、NTO/MMH，最多 3 级。`validateLevelDesign` 把“物理可行”和“关卡达标”分开：Saturn V 修正后物理可行（TWR 1.19、Δv 18.18 km/s、Isp 454.5 s），但仍超出 PLOC 0.67% 和 $629.1M 预算。
+项目从“关卡达标推演游戏”改为“以观赏为目的的航天项目模拟器”。打开页面自动播放一次完整载人任务（发射 → 上升 → 级间 → 入轨 → 在轨 → 交会 → 离轨 → 再入 → 着陆），保留物理遥测；关卡判定、成功/失败评分和飞行中的人工决策已删除。物理与渲染内核不变。播控在 `src/sim/PlaybackLoop.ts`，相位阈值见 `docs/superpowers/specs/2026-11-20-autoplay-simulator-design.md`。设计器保留开播前选车/改级参数，改配置即从头重播；`store` 只镜像遥测。
 
 ## 物理与数值
 
-物理模块独立于渲染：推进、质量、气动、轨道 RK4、热、结构、生保、辐射、成本、PLOC。状态显示以 `PhysicsDirector.positionKm()` 为单一来源；warp 只加速时间，不改物理量。J2 造成的 LEO 瞬时速度摆动约 0.144%，是物理摄动而非积分误差，遥测绿带取 0.2%。
+物理模块独立于渲染：推进、质量、气动、轨道 RK4、热、结构、生保、辐射、成本、PLOC。状态显示以 `PhysicsDirector.positionKm()` 为单一来源；warp 只加速物理时间，不改物理量，且在轨/交会/着陆驻留按墙钟计时。J2 造成的 LEO 瞬时速度摆动约 0.144%，是物理摄动而非积分误差，遥测绿带取 0.2%。
 
 ## 渲染比例与发射场
 
-场景单位统一为 **1 unit = 100 m**，由 `src/render/sceneScale.ts` 单点定义（`METRES_PER_UNIT = 100`、`UNITS_PER_KM = 10`、地球半径 63,710 units）。之前 `Scene` 用 1 unit = 100 km、`vehicleGeometry` 用 1 unit = 100 m，火箭相对地球大约放大了 1000 倍，这是“地球太小、火箭太大”的根因。现在场景以发射台为浮动原点：发射台 (0,0,0)，地心 (-63,710,0,0)，既保留真实比例，又避免 float32 在 6,371 km 坐标上损失 80 m 级细节。Saturn V 高 0.817 units（81.7 m）、半径 0.041 units（4.1 m），与地球半径比约 1/78,000。
+场景单位统一为 **1 unit = 100 m**，由 `src/render/sceneScale.ts` 单点定义（`METRES_PER_UNIT = 100`、`UNITS_PER_KM = 10`、地球半径 63,710 units）。场景以发射台为浮动原点：发射台 (0,0,0)，地心 (-63,710,0,0)，既保留真实比例，又避免 float32 在 6,371 km 坐标上损失 80 m 级细节。Saturn V 高 0.817 units（81.7 m）、半径 0.041 units（4.1 m），与地球半径比约 1/78,000。
 
 `src/render/LaunchComplex.ts` 按当前箭体高度生成发射场：混凝土坪、发射台、固定夹、1.35 倍箭高的桁架服务塔、可收放勤务臂、避雷针、小建筑和一块陆地垫层。低空控制/地面/追尾/座舱视角使用日间天空穹顶、距离雾和按箭体尺寸缩放的尾焰/烟雾/碎片；轨道与总览视角隐藏天空、显示星空。相机按箭高取景，默认 control 视角同时看到地球地平线和完整的发射台/服务塔。
 
 ## 已知范围
 
-这是交互式教学/推演模型，不是任务规划工具；地球表面是低细节球体加发射场局部细节，不追求真实地形或纹理。第一关之外的概念方案（核热、电推进、行星发动机等）用真实物理做可行性判定，非化学推进的 Isp 直接给定，不伪造燃烧计算。
+这是观赏用物理模型，不是任务规划工具或飞行认证工具；地球表面是低细节球体加发射场局部细节，不追求真实地形或纹理。历史与概念方案（核热、电推进、行星发动机等）仍用真实物理做可行性判定，非化学推进的 Isp 直接给定，不伪造燃烧计算。
 
 
 ## Timeline
@@ -124,4 +124,16 @@ updated: "2026-11-13T13:44:39"
   kind: decision
   summary: "渲染比例根因修正：统一 1 unit=100 m，地球半径 63,710 units，发射台浮动原点；新增 LaunchComplex 发射台/服务塔；日间天空与按箭体缩放的效果。239 测试通过，生产构建和六视角截图验证。"
   source: "src/render/sceneScale.ts; src/render/LaunchComplex.ts; src/render/Scene.ts; tests/render/sceneScale.test.ts"
+  affects: [crewed-spaceflight-sim]
+
+- time: 2026-11-20T12:19:43
+  kind: decision
+  summary: Rewrote compiled_truth to the new best understanding
+  source: brain update-truth
+  affects: [crewed-spaceflight-sim]
+
+- time: 2026-11-20T12:19:43
+  kind: reversal
+  summary: "2026-11-20 方向反转：项目不再是关卡达标推演游戏，改为以观赏为目的的自动播放航天任务模拟器；删除 levels/LevelPanel/decide，保留物理与渲染内核，新增 src/sim/PlaybackLoop.ts 自动推进全流程"
+  source: "用户指令 + docs/superpowers/specs/2026-11-20-autoplay-simulator-design.md"
   affects: [crewed-spaceflight-sim]

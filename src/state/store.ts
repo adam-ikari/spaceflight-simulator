@@ -1,7 +1,7 @@
-/** Minimal mission state and pub/sub — DESIGN.md §9, no framework. */
+/** Minimal telemetry state and pub/sub — DESIGN.md §9, no framework. */
 import type { SystemsSnapshot } from '../physics/ComponentSystems';
 
-export interface GameState {
+export interface SimState {
   phase: string;
   t: number;
   altitudeKm: number;
@@ -9,15 +9,13 @@ export interface GameState {
   ploc: number;
   costUsd: number;
   fuelPct: number;
-  aborted: boolean;
-  decisions: string[];
   /** Per-component thermal/vibration state; null before a vehicle is set. */
   systems?: SystemsSnapshot | null;
 }
 
-export type Listener = (s: GameState) => void;
+export type Listener = (s: SimState) => void;
 
-const INITIAL: GameState = {
+const INITIAL: SimState = {
   phase: 'PAD',
   t: 0,
   altitudeKm: 0,
@@ -25,17 +23,15 @@ const INITIAL: GameState = {
   ploc: 0,
   costUsd: 0,
   fuelPct: 100,
-  aborted: false,
-  decisions: [],
   systems: null,
 };
 
-let state: GameState = INITIAL;
+let state: SimState = INITIAL;
 const listeners = new Set<Listener>();
 
 export const store: {
-  get(): GameState;
-  set(partial: Partial<GameState>): void;
+  get(): SimState;
+  set(partial: Partial<SimState>): void;
   subscribe(l: Listener): () => void;
 } = {
   get: () => state,
