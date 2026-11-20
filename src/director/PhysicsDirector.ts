@@ -9,6 +9,9 @@ import { dynamicPressure } from '../physics/Atmosphere';
 import { computePLOC } from '../physics/RiskModel';
 import { computeCost } from '../physics/CostModel';
 import { ComponentSystems, type SystemsSnapshot } from '../physics/ComponentSystems';
+import { FlightComputer, type FlightCommand, type ProgramStatus } from '../physics/FlightComputer';
+import { computeConsumables, stepLifeSupport, type LifeSupportState } from '../physics/LifeSupport';
+import { accumulate, gcrDoseRateMsvPerDay } from '../physics/Radiation';
 import type { StageSpec } from '../physics/RocketEquation';
 import { PHASE_ORDER, type Phase } from './phases';
 
@@ -23,6 +26,9 @@ export interface Telemetry {
   fuelPct: number;
   /** Per-component temperatures, vibration and failure branches. */
   systems: SystemsSnapshot | null;
+  computer?: ProgramStatus[];
+  life?: LifeSupportState;
+  radiationMsv?: number;
 }
 
 /** Default launch vehicle for the director's coarse physics. */
@@ -66,8 +72,21 @@ export class PhysicsDirector {
   private payloadKg = 0;
   private systems: ComponentSystems | null = null;
   private systemsSnapshot: SystemsSnapshot | null = null;
+  private computer = new FlightComputer();
+  private command: FlightCommand | null = null;
+  private programs: ProgramStatus[] = [];
+  private lifeState: LifeSupportState;
+  private radiationMsv = 0;
 
   constructor() {
+    const consumables = computeConsumables({ crew: 3, durationDays: 20 });
+    this.lifeState = {
+      o2RemainKg: consumables.o2Kg,
+      waterRemainKg: consumables.waterKg,
+      co2Pct: 0,
+      metabolicHeatW: 300,
+      failures: [],
+    };
     this.update();
   }
 
@@ -112,11 +131,42 @@ export class PhysicsDirector {
     this.update();
   }
 
+  /** Onboard programs and life/radiation domains run on every physics step. */
+  private stepComputer(dt: number): void {
+    const { r, dir, tan } = this.radial();
+    const speed = norm(this.s.vel);
+    const radialV = this.s.vel[0] * dir[0] + this.s.vel[1] * dir[1] + this.s.vel[2] * dir[2];
+    const tangentialV = this.s.vel[0] * tan[0] + this.s.vel[1] * tan[1];
+    const altitudeM = Math.max(0, r - CONST.R_EARTH);
+    this.command = this.computer.step(dt, {
+      phase: this.p,
+      body: 'EARTH',
+      timeSec: this.s.t,
+      altitudeM,
+      speedMs: speed,
+      radialSpeedMs: radialV,
+      tangentialSpeedMs: tangentialV,
+      targetAltitudeM: 200e3,
+      targetSpeedMs: circularOrbitVelocity(200e3),
+      dvRemainingMs: this.dvRemainingMs,
+      massKg: 1,
+      faults: this.systemsSnapshot?.failures.map((f) => f.node) ?? [],
+    });
+    this.programs = this.command.programs;
+    this.lifeState = stepLifeSupport(this.lifeState, 3, dt);
+    const shielding = altitudeM < 100e3 ? 1 : 0.7;
+    this.radiationMsv = accumulate(
+      this.radiationMsv,
+      gcrDoseRateMsvPerDay(shielding) / 86400 * dt,
+    );
+  }
+
   /** Aggregate one physics step for the current phase. */
   step(dtSec: number): void {
     const dt = Math.max(0, dtSec);
     if (dt === 0) return;
     const t0 = this.s.t;
+    this.stepComputer(dt);
 
     switch (this.p) {
       case 'PAD':
@@ -162,6 +212,9 @@ export class PhysicsDirector {
       costUsd: this.costUsd,
       fuelPct: (100 * this.dvRemainingMs) / ASCENT_DV_MS,
       systems: this.systemsSnapshot,
+      computer: this.programs,
+      life: this.lifeState,
+      radiationMsv: this.radiationMsv,
     };
   }
 
@@ -184,8 +237,8 @@ export class PhysicsDirector {
     const { r, dir, tan } = this.radial();
     const g = CONST.MU_EARTH / (r * r);
     const altM = Math.max(0, r - CONST.R_EARTH);
-    const pitch = Math.min(altM / (PITCHOVER_KM * 1e3), 1) * 80 * (Math.PI / 180);
-    const a = ASCENT_ACCEL_MS2;
+    const pitch = this.command?.pitchRad ?? 0;
+    const a = ASCENT_ACCEL_MS2 * (this.command?.throttle ?? 1);
     const dv = Math.min(this.dvRemainingMs, a * dt);
     this.dvRemainingMs = Math.max(0, this.dvRemainingMs - dv);
 

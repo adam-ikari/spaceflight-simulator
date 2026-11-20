@@ -4,9 +4,10 @@
  */
 import { PlaybackLoop } from './sim/PlaybackLoop';
 import { Scene } from './render/Scene';
-import type { ViewMode } from './render/Scene';
+import type { Mission, ViewMode } from './render/Scene';
 import { RocketDesigner } from './ui/RocketDesigner';
 import { TelemetryPanel } from './ui/TelemetryPanel';
+import { store } from './state/store';
 
 function el(id: string): HTMLElement {
   const node = document.getElementById(id);
@@ -42,6 +43,14 @@ function boot(): void {
     pause.textContent = '暂停';
   });
 
+  const mission = document.getElementById('mission') as HTMLSelectElement | null;
+  mission?.addEventListener('change', () => {
+    const next = mission.value as Mission;
+    playback.setMission(next);
+    scene.setMission(next);
+    pause.textContent = '暂停';
+  });
+
   const view = document.getElementById('view') as HTMLSelectElement | null;
   view?.addEventListener('change', () => scene.setView(view.value as ViewMode));
 
@@ -58,9 +67,15 @@ function boot(): void {
     if (playback.finished) pause.textContent = '已结束';
     const director = playback.director;
     const pos = director.positionKm();
-    scene.setPhase(director.phase);
-    scene.setRocketPosition(pos);
-    scene.addTrajectoryPoint(pos);
+    const moonPos = director.moonPositionKm?.();
+    if (moonPos) {
+      scene.setLunarFrame(store.get().body ?? 'EARTH', pos, moonPos, director.phase);
+      scene.addTrajectoryPoint(pos);
+    } else {
+      scene.setPhase(director.phase);
+      scene.setRocketPosition(pos);
+      scene.addTrajectoryPoint(pos);
+    }
     scene.update(dt);
     requestAnimationFrame(frame);
   };

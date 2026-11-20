@@ -5,7 +5,7 @@ category: decision
 status: active
 tags: [simulation, physics, rocket]
 created: "2026-11-09T23:28:13"
-updated: "2026-11-20T12:19:43"
+updated: "2026-11-20T15:24:16"
 ---
 
 <!-- compiled_truth -->
@@ -136,4 +136,10 @@ updated: "2026-11-20T12:19:43"
   kind: reversal
   summary: "2026-11-20 方向反转：项目不再是关卡达标推演游戏，改为以观赏为目的的自动播放航天任务模拟器；删除 levels/LevelPanel/decide，保留物理与渲染内核，新增 src/sim/PlaybackLoop.ts 自动推进全流程"
   source: "用户指令 + docs/superpowers/specs/2026-11-20-autoplay-simulator-design.md"
+  affects: [crewed-spaceflight-sim]
+
+- time: 2026-11-20T15:24:16
+  kind: decision
+  summary: "项目定位收敛为纯观赏航天项目模拟器：近地轨道与载人登月两个任务预设，无评分/关卡。FlightComputer 的 NAV/GUID/CTRL/FAULT/SEQ 五个机载程序每步闭环输出节流、俯仰与机构指令，直接驱动两套 director 的推力控制；ComponentSystems、LifeSupport、Radiation、RiskModel、CostModel、燃烧化学与气动阻力每个物理步持续参与计算。LunarDirector 实现 PAD→DONE 全流程，PlaybackLoop 支持任务切换，Scene 以真实地月坐标渲染巡航。243 测试通过，tsc 与生产构建通过，浏览器验证任务切换与遥测面板。"
+  source: "src/physics/FlightComputer.ts;src/sim/LunarDirector.ts;src/director/PhysicsDirector.ts;src/sim/PlaybackLoop.ts;src/render/Scene.ts;src/main.ts;README.md;DESIGN.md"
   affects: [crewed-spaceflight-sim]

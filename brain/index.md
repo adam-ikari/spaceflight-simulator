@@ -1,5 +1,5 @@
 # Brain Index
 
-_Auto-generated. Last updated 2026-11-20T04:19:43.505Z._
+_Auto-generated. Last updated 2026-11-20T07:24:16.267Z._
 
 - [crewed-spaceflight-sim](pages/crewed-spaceflight-sim.md) — category: decision | tags: [simulation, physics, rocket] | ## 目标与形态（2026-11-20 反转）

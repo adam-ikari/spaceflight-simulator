@@ -34,8 +34,35 @@ export class TelemetryPanel {
   <div style="${ROW_STYLE}"><span>机组损失概率（PLOC）</span><b>${(s.ploc * 100).toFixed(2)} %</b></div>
   <div style="${ROW_STYLE}"><span>成本</span><b>$${(s.costUsd / 1e6).toFixed(2)} M</b></div>
   <div style="${ROW_STYLE}"><span>燃料</span><b>${s.fuelPct.toFixed(1)} %</b></div>
+  ${this.computerRows(s)}
+  ${this.lifeRows(s)}
   ${this.systemRows(s)}
 </div>`;
+  }
+
+  /** Onboard flight-computer programs run continuously; their cycles are live. */
+  private computerRows(s: SimState): string {
+    const programs = s.computer;
+    if (!programs?.length) return '';
+    const rows = programs
+      .map(
+        (p) =>
+          `<div style="${ROW_STYLE}"><span>${p.name}</span><b style="color:${p.healthy ? '#2e7d32' : '#c62828'}">${p.cycles} · ${p.lastOutput}</b></div>`,
+      )
+      .join('');
+    return `<div style="margin-top:.6rem;border-top:1px solid #3c4043;padding-top:.45rem;font-weight:600">机载计算机</div>${rows}`;
+  }
+
+  /** Life support, radiation dose and chemistry-driven fuel state. */
+  private lifeRows(s: SimState): string {
+    const life = s.life;
+    if (!life) return '';
+    return `
+  <div style="margin-top:.6rem;border-top:1px solid #3c4043;padding-top:.45rem;font-weight:600">生命保障</div>
+  <div style="${ROW_STYLE}"><span>氧气</span><b>${life.o2RemainKg.toFixed(1)} kg</b></div>
+  <div style="${ROW_STYLE}"><span>水</span><b>${life.waterRemainKg.toFixed(1)} kg</b></div>
+  <div style="${ROW_STYLE}"><span>CO₂</span><b>${life.co2Pct.toFixed(3)} %</b></div>
+  <div style="${ROW_STYLE}"><span>辐射剂量</span><b>${(s.radiationMsv ?? 0).toFixed(3)} mSv</b></div>`;
   }
 
   /**

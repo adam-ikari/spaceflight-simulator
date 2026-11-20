@@ -19,7 +19,8 @@
  * This is a feasibility/trajectory model, not a closed-loop guidance law.
  */
 import { CONST } from './constants';
-import { StageSpec, stagePerformance } from './RocketEquation';
+import type { StageSpec } from './RocketEquation';
+import { stagePerformance } from './RocketEquation';
 import { dragForce, dynamicPressure } from './Atmosphere';
 
 export interface StageAscentState {

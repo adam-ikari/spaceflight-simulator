@@ -329,3 +329,21 @@ PLOC = 机组损失概率，随飞行状态与部件风险动态更新。
 4. 实时 PLOC 与成本随飞行状态演化，数字可追溯到公式与历史概率。
 5. 自动播控从 PAD 推进到 LANDING 后停机，暂停/重播行为正确（见 `tests/sim/PlaybackLoop.test.ts`）。
 6. 化学推进 Isp 计算对 LOX/RP-1 复算值落在 330–350s 真实区间。
+
+## 12. 机载计算机与全程物理域
+
+本项目不是离散阶段演示：每个物理/化学域在每个物理步都参与计算。
+
+- `FlightComputer`（`src/physics/FlightComputer.ts`）是实际控制器，不是装饰面板。它每步运行 `NAV / GUID / CTRL / FAULT / SEQ` 五个程序，输出节流、俯仰、级号和机构指令；`PhysicsDirector` 与 `LunarDirector` 的推力控制直接使用这些指令。遥测显示程序周期与最近输出。
+- `ComponentSystems.step` 每步推进热、振动、疲劳、蒸发与超限分支；其失败分支并入 `RiskModel` 的 PLOC。
+- `stepLifeSupport` 每步推进氧气、水、CO₂ 与代谢热；`Radiation.gcrDoseRateMsvPerDay` 每步累计剂量。
+- `computeEngine` 提供 Isp，`thrustFromIsp` 约束有限燃烧与质量消耗，`dragForceN` 只要有大气就参与受力。
+- 成本 `computeCost` 和风险 `computePLOC` 随当前状态每步重算。
+
+## 13. 载人登月预设
+
+`PlaybackLoop.setMission('lunar')` 切换到 `LunarDirector`，`Scene.setLunarFrame` 使用真实地月坐标渲染地月与轨迹。
+
+阶段：PAD → LIFTOFF → ASCENT → PARK → TLI → TRANSFER → LOI → LUNAR_ORBIT → DESCENT → MOON_LANDING → LUNAR_LAUNCH → RENDEZVOUS → TEI → EARTH_RETURN → EARTH_ENTRY → LANDING → DONE。
+
+动力段由机载计算机闭环控制；地月滑行段使用 `stepLunarRK4` 的日地/地月两体引力与随时间变化的月球星历。任务目标是观赏完整工程流程，不做成功/失败评分。

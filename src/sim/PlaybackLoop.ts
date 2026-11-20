@@ -1,11 +1,12 @@
 /**
- * Playback loop — runs one complete crewed mission automatically and mirrors
- * director telemetry into the store. Physics stays in PhysicsDirector; this
- * class only decides when the next phase begins.
+ * Playback loop — runs one complete mission automatically and mirrors
+ * director telemetry into the store. LEO uses the existing PhysicsDirector;
+ * the lunar mission uses LunarDirector, which owns its own phase progression.
  */
 import { PhysicsDirector } from '../director/PhysicsDirector';
-import type { Phase } from '../director/phases';
 import { store } from '../state/store';
+import { LunarDirector } from './LunarDirector';
+import type { MissionDirector, MissionKind } from './MissionDirector';
 
 /** Altitude triggers for the powered-ascent phases, km. */
 const ASCENT_KM = 3;
@@ -25,26 +26,29 @@ const DEORBIT_MAX_S = 180;
 const ENTRY_TARGET_KM = 3.2;
 
 export class PlaybackLoop {
-  private d = new PhysicsDirector();
+  private d: MissionDirector;
   private raf = 0;
   private last = 0;
   private warp: number;
+  private mission: MissionKind;
   private wallDwell = 0;
   private physicsClock = 0;
   private paused = false;
   private stopped = false;
   private vehicle: Parameters<PhysicsDirector['setVehicle']> | null = null;
 
-  constructor(warp = 1) {
+  constructor(warp = 1, mission: MissionKind = 'leo') {
     this.warp = Math.max(1, warp);
+    this.mission = mission;
+    this.d = this.createDirector();
     this.reset();
   }
 
-  get director(): PhysicsDirector {
+  get director(): MissionDirector {
     return this.d;
   }
 
-  get phase(): Phase {
+  get phase(): string {
     return this.d.phase;
   }
 
@@ -52,16 +56,26 @@ export class PlaybackLoop {
     return this.stopped;
   }
 
-  /** Restart from liftoff with the last configured vehicle. */
+  private createDirector(): MissionDirector {
+    return this.mission === 'lunar' ? new LunarDirector() : new PhysicsDirector();
+  }
+
+  /** Restart with the last configured vehicle, preserving the mission choice. */
   reset(): void {
-    this.d = new PhysicsDirector();
+    this.d = this.createDirector();
     if (this.vehicle) this.d.setVehicle(...this.vehicle);
-    this.d.setPhase('LIFTOFF');
+    if (this.mission === 'leo') (this.d as PhysicsDirector).setPhase('LIFTOFF');
     this.wallDwell = 0;
     this.physicsClock = 0;
     this.paused = false;
     this.stopped = false;
     this.sync();
+  }
+
+  /** Switch between near-Earth and full lunar mission; always restarts. */
+  setMission(mission: MissionKind): void {
+    this.mission = mission;
+    this.reset();
   }
 
   /** Changing the vehicle always restarts playback — no in-flight swap. */
@@ -103,18 +117,24 @@ export class PlaybackLoop {
     if (this.paused || this.stopped) return;
     const wall = Math.max(0, dtWallSec);
     const dt = wall * this.warp;
+    if (this.mission === 'lunar') {
+      this.d.step(dt, wall);
+      if ((this.d as LunarDirector).finished) this.stopped = true;
+      this.sync();
+      return;
+    }
     this.d.step(dt);
     this.advance(wall, dt);
     this.sync();
   }
 
-  private go(next: Phase): void {
-    this.d.setPhase(next);
+  private go(next: Parameters<PhysicsDirector['setPhase']>[0]): void {
+    (this.d as PhysicsDirector).setPhase(next);
     this.wallDwell = 0;
     this.physicsClock = 0;
   }
 
-  /** Phase transitions no longer require a user decision. */
+  /** LEO phase transitions no longer require a user decision. */
   private advance(wall: number, dt: number): void {
     const { altitudeKm, speedMs, dvRemainingMs } = this.d.telemetry();
     switch (this.d.phase) {
@@ -168,6 +188,15 @@ export class PlaybackLoop {
       costUsd: t.costUsd,
       fuelPct: t.fuelPct,
       systems: t.systems,
+      body: t.body,
+      ispS: t.ispS,
+      dragN: t.dragN,
+      pogoG: t.pogoG,
+      vibrationGrms: t.vibrationGrms,
+      ascentLossMs: t.ascentLossMs,
+      computer: t.computer,
+      life: t.life,
+      radiationMsv: t.radiationMsv,
     });
   }
 }

@@ -1,5 +1,8 @@
 /** Minimal telemetry state and pub/sub — DESIGN.md §9, no framework. */
 import type { SystemsSnapshot } from '../physics/ComponentSystems';
+import type { ProgramStatus } from '../physics/FlightComputer';
+import type { LifeSupportState } from '../physics/LifeSupport';
+import type { Body } from '../sim/MissionDirector';
 
 export interface SimState {
   phase: string;
@@ -9,8 +12,17 @@ export interface SimState {
   ploc: number;
   costUsd: number;
   fuelPct: number;
+  body?: Body;
+  ispS?: number;
+  dragN?: number;
+  pogoG?: number;
+  vibrationGrms?: number;
+  ascentLossMs?: number;
   /** Per-component thermal/vibration state; null before a vehicle is set. */
   systems?: SystemsSnapshot | null;
+  computer?: ProgramStatus[];
+  life?: LifeSupportState;
+  radiationMsv?: number;
 }
 
 export type Listener = (s: SimState) => void;

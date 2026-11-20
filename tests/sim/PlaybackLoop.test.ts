@@ -57,6 +57,16 @@ describe('PlaybackLoop', () => {
     expect(store.get().t).toBeGreaterThan(0);
   });
 
+  it('switches between lunar and LEO missions', () => {
+    const loop = new PlaybackLoop(10, 'lunar');
+    expect(loop.phase).toBe('PAD');
+    for (let i = 0; i < 40; i++) loop.tick(0.1);
+    expect(loop.phase).not.toBe('PAD');
+    loop.setMission('leo');
+    expect(loop.phase).toBe('LIFTOFF');
+    expect(store.get().body).toBeUndefined();
+  });
+
   it('setVehicle restarts playback from LIFTOFF', () => {
     const loop = new PlaybackLoop(10);
     for (let i = 0; i < 20; i++) loop.tick(0.1);
