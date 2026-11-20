@@ -8,11 +8,11 @@ interface PhaseGroup {
 }
 
 const PHASE_GROUPS: PhaseGroup[] = [
-  { label: '发射', phases: ['PAD', 'LIFTOFF', 'ASCENT', 'STAGE_SEP', 'ORBIT_INSERT'] },
-  { label: '地球轨道', phases: ['ORBIT', 'PARK', 'RENDEZVOUS', 'DEORBIT'] },
+  { label: '发射段', phases: ['PAD', 'LIFTOFF', 'ASCENT', 'STAGE_SEP', 'ORBIT_INSERT'] },
+  { label: '地球停泊', phases: ['ORBIT', 'PARK', 'RENDEZVOUS', 'DEORBIT'] },
   { label: '地月转移', phases: ['TLI', 'TRANSFER', 'LOI'] },
-  { label: '月面作业', phases: ['LUNAR_ORBIT', 'DESCENT', 'MOON_LANDING', 'LUNAR_LAUNCH'] },
-  { label: '返回着陆', phases: ['TEI', 'EARTH_RETURN', 'EARTH_ENTRY', 'LANDING', 'DONE'] },
+  { label: '登月作业', phases: ['LUNAR_ORBIT', 'DESCENT', 'MOON_LANDING', 'LUNAR_LAUNCH'] },
+  { label: '返回地球', phases: ['TEI', 'EARTH_RETURN', 'EARTH_ENTRY', 'LANDING', 'DONE'] },
 ];
 
 function metric(label: string, value: string, colour = ''): string {
@@ -48,12 +48,13 @@ export class TelemetryPanel {
     if (typeof document === 'undefined') return;
     this.container.innerHTML = `
 <div class="hud-top">
-  <div class="hud-brand">航天项目模拟器</div>
+  <div class="hud-brand">阿波罗 11</div>
   <div class="phase-track">${this.timeline(s.phase)}</div>
   <div class="hud-clock">T+${s.t.toFixed(0)} s</div>
 </div>
 <div class="metric-grid">
   ${metric('天体 / 阶段', `${s.body === 'MOON' ? '月球' : '地球'} · ${s.phase}`)}
+  ${metric('航天器', this.apolloVehicle(s.phase))}
   ${metric('高度', `${s.altitudeKm.toFixed(1)} km`)}
   ${metric('速度', `${s.speedMs.toFixed(0)} m/s`)}
   ${metric('燃料', `${s.fuelPct.toFixed(1)} %`)}
@@ -62,6 +63,9 @@ export class TelemetryPanel {
 </div>
 <details class="hud-detail"${this.detailsOpen ? ' open' : ''}>
   <summary>系统详情</summary>
+  <div class="detail-section">任务</div>
+  <div class="detail-row"><span>飞船</span><b>CSM Columbia / LM Eagle</b></div>
+  <div class="detail-row"><span>乘员</span><b>Armstrong · Aldrin · Collins</b></div>
   ${this.computerRows(s)}
   ${this.lifeRows(s)}
   ${this.orbitRows(s)}
@@ -76,6 +80,15 @@ export class TelemetryPanel {
       const state = i === active ? 'active' : i < active ? 'done' : '';
       return `<div class="phase-step ${state}">${g.label}</div>`;
     }).join('');
+  }
+
+  /** Apollo 11 stack: which vehicle the crew is flying in this phase. */
+  private apolloVehicle(phase: string): string {
+    if (['PAD', 'LIFTOFF', 'ASCENT', 'STAGE_SEP'].includes(phase)) return '土星五号 S-IC/S-II';
+    if (['ORBIT_INSERT', 'ORBIT', 'PARK', 'TLI'].includes(phase)) return 'S-IVB + CSM';
+    if (['DESCENT', 'MOON_LANDING', 'LUNAR_LAUNCH'].includes(phase)) return '登月舱 Eagle';
+    if (['RENDEZVOUS', 'TRANSFER', 'LOI', 'LUNAR_ORBIT', 'TEI'].includes(phase)) return 'CSM Columbia';
+    return '指令舱 Columbia';
   }
 
   /** Onboard flight-computer programs run continuously; their cycles are live. */

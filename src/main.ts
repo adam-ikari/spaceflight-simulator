@@ -5,9 +5,11 @@
 import { PlaybackLoop } from './sim/PlaybackLoop';
 import { Scene } from './render/Scene';
 import type { ViewMode } from './render/Scene';
-import { RocketDesigner } from './ui/RocketDesigner';
 import { TelemetryPanel } from './ui/TelemetryPanel';
 import { store } from './state/store';
+import { ARCHETYPES } from './physics/archetypes';
+
+const APOLLO_PAYLOAD_KG = 45_000;
 
 function el(id: string): HTMLElement {
   const node = document.getElementById(id);
@@ -20,13 +22,20 @@ function boot(): void {
   document.getElementById('loading')?.remove();
   const playback = new PlaybackLoop(10, 'lunar');
   scene.setMission('lunar');
-
-  // Designer pushes the chosen stack into physics and rendering; changing it
-  // restarts playback so the vehicle never swaps mid-flight.
-  new RocketDesigner(el('designer'), (stages, payloadKg, config) => {
-    playback.setVehicle(config.escapeSystem, config.hasSolidBooster, stages, payloadKg);
-    scene.setVehicle(stages, config);
+  const saturnV = ARCHETYPES.find((a) => a.id === 'saturn_v');
+  if (!saturnV) throw new Error('Missing Saturn V archetype');
+  playback.setVehicle(saturnV.escapeSystem, false, saturnV.stages, APOLLO_PAYLOAD_KG);
+  scene.setVehicle(saturnV.stages, {
+    escapeSystem: saturnV.escapeSystem,
+    hasSolidBooster: false,
   });
+
+  playback.pause();
+  el('start').addEventListener('click', () => {
+    playback.resume();
+    el('start-overlay').remove();
+  });
+
   new TelemetryPanel(el('telemetry')).render();
 
   const pause = el('pause') as HTMLButtonElement;

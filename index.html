@@ -119,18 +119,52 @@
         font: 600 16px/1.4 system-ui, sans-serif;
         letter-spacing: .08em;
       }
+      #start-overlay {
+        position: fixed;
+        inset: 0;
+        z-index: 8;
+        display: grid;
+        place-items: center;
+        background: radial-gradient(circle at 50% 40%, #10192b 0%, #05070f 70%);
+      }
+      .start-card {
+        width: min(520px, calc(100vw - 32px));
+        padding: 2rem;
+        text-align: center;
+        background: rgba(12, 17, 27, .92);
+        border: 1px solid #3c5a86;
+        border-radius: 10px;
+      }
+      .start-tag { color: #8ab4f8; letter-spacing: .35em; font-weight: 700; }
+      .start-card h1 { margin: .6rem 0 1rem; font-size: 30px; }
+      .start-card p { color: #b8c1cc; margin: .35rem 0; }
+      .start-crew { font-size: 12px; color: #7f8794 !important; }
+      #start {
+        margin-top: 1.5rem;
+        padding: .7rem 2.2rem;
+        font: 600 16px/1 system-ui, sans-serif;
+        color: #07101c;
+        background: #8ab4f8;
+        border: 0;
+        border-radius: 4px;
+        cursor: pointer;
+      }
+      #start:hover { background: #a8c8ff; }
     </style>
   </head>
   <body>
     <div id="loading">正在加载航天模拟器…</div>
+    <div id="start-overlay">
+      <div class="start-card">
+        <div class="start-tag">APOLLO 11</div>
+        <h1>载人登月任务</h1>
+        <p>土星五号运载火箭 · 阿波罗指令/服务舱 · 登月舱</p>
+        <p class="start-crew">阿姆斯特朗 · 奥尔德林 · 柯林斯</p>
+        <button id="start" type="button">开始播放</button>
+      </div>
+    </div>
     <div id="scene"></div>
     <div id="telemetry"></div>
-    <aside id="side">
-      <details id="designer-panel">
-        <summary>火箭设计器</summary>
-        <div id="designer"></div>
-      </details>
-    </aside>
     <div id="controls">
       <label for="view">视角
         <select id="view">
