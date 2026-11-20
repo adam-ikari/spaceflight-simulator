@@ -83,6 +83,7 @@ function boot(): void {
   });
 
   let last = performance.now();
+  let lastPos: [number, number, number] | null = null;
   const frame = (now: number): void => {
     const dt = Math.min(Math.max(0, (now - last) / 1000), 0.1);
     last = now;
@@ -92,6 +93,14 @@ function boot(): void {
     const director = playback.director;
     const pos = director.positionKm();
     const moonPos = director.moonPositionKm?.();
+    if (lastPos && Math.hypot(
+      pos[0] - lastPos[0],
+      pos[1] - lastPos[1],
+      pos[2] - lastPos[2],
+    ) > 1000) {
+      scene.clearTrajectory();
+    }
+    lastPos = [...pos];
     if (moonPos) {
       scene.setLunarFrame(store.get().body ?? 'EARTH', pos, moonPos, director.phase);
       scene.addTrajectoryPoint(pos);

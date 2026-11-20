@@ -12,6 +12,7 @@ const kernel = instance.exports.lunar_rk4 as (
   phase: number,
   omega: number,
   sma: number,
+  epoch: number,
 ) => void;
 
 const STATE_PTR = 1024;
@@ -24,6 +25,7 @@ export function stepLunarRK4Wasm(
   phaseRad: number,
   moonOmega: number,
   moonSmaM: number,
+  epochSec = 0,
 ): OrbitState {
   stateBuf[0] = state.pos[0];
   stateBuf[1] = state.pos[1];
@@ -41,6 +43,7 @@ export function stepLunarRK4Wasm(
     phaseRad,
     moonOmega,
     moonSmaM,
+    epochSec,
   );
 
   return {

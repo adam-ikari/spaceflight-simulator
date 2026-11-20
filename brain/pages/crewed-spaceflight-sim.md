@@ -5,7 +5,7 @@ category: decision
 status: active
 tags: [simulation, physics, rocket]
 created: "2026-11-09T23:28:13"
-updated: "2026-11-20T23:11:26"
+updated: "2026-11-21T01:30:31"
 ---
 
 <!-- compiled_truth -->
@@ -154,4 +154,10 @@ updated: "2026-11-20T23:11:26"
   kind: decision
   summary: "地月转移 RK4 从 JS 移至 Rust/WASM 内核：wasm/lunar_kernel.rs 编译为 8.4 KB wasm，Vite 插件在构建时内联为字节数组，保留原有两体+月历物理方程；基准原始内核比 JS 快 5.67 倍。保留 Babylon 为独立渲染 chunk，WASM 不加速渲染。"
   source: "wasm/lunar_kernel.rs;src/physics/LunarKernel.ts;viteWasmPlugin.ts;src/physics/LunarDynamics.ts"
+  affects: [crewed-spaceflight-sim]
+
+- time: 2026-11-21T01:30:31
+  kind: decision
+  summary: "轨迹根因修复：LunarDirector 增加绝对历元，WASM RK4 接收历元偏移；positionKm 在月心系加回月球绝对位置；渲染端在地心位置跳变时清轨迹，避免简化阶段切换产生跨屏线段。火箭模型改为可辨识的 Saturn V/Apollo 11 堆栈。"
+  source: "src/sim/LunarDirector.ts;src/physics/LunarKernel.ts;wasm/lunar_kernel.rs;src/main.ts;src/render/Scene.ts;src/render/RocketModel.ts"
   affects: [crewed-spaceflight-sim]

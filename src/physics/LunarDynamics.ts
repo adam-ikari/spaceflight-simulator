@@ -75,13 +75,14 @@ export function lunarAcceleration(pos: Vec3, tSec: number): Vec3 {
 }
 
 /** RK4 step with the acceleration re-evaluated at each intermediate epoch. */
-export function stepLunarRK4(state: OrbitState, dtSec: number): OrbitState {
+export function stepLunarRK4(state: OrbitState, dtSec: number, epochSec = 0): OrbitState {
   return stepLunarRK4Wasm(
     state,
     dtSec,
     REFERENCE_TRANSFER.moonPhaseLeadRad,
     CONST.MOON_OMEGA,
     CONST.MOON_SMA_M,
+    epochSec,
   );
 }
 

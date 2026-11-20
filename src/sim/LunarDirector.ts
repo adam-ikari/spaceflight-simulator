@@ -81,6 +81,8 @@ export class LunarDirector implements MissionDirector {
   private massKg = INITIAL_MASS_KG;
   private missionTime = 0;
   private wallDwell = 0;
+  /** Absolute TLI-relative epoch; `s.t` resets at frame changes but this does not. */
+  private epochSec = 0;
   private burnDv = 0;
   private ascentDvRemaining = ASCENT_DV_MS;
   private transfer: TransferSolution | null = null;
@@ -125,12 +127,28 @@ export class LunarDirector implements MissionDirector {
     return this.stopped;
   }
 
+  /** Reset the phase-local clock while preserving the absolute moon ephemeris. */
+  private resetClock(): void {
+    this.epochSec += this.s.t;
+    this.s.t = 0;
+  }
+
+  private absoluteMoonPositionM(): [number, number, number] {
+    return moonPositionAt(this.epochSec + this.s.t);
+  }
+
+  /** Renderer-facing geocentric position, even while the physics state is moon-relative. */
   positionKm(): [number, number, number] {
-    return [this.s.pos[0] / 1000, this.s.pos[1] / 1000, this.s.pos[2] / 1000];
+    const moon = this.body === 'MOON' ? this.absoluteMoonPositionM() : [0, 0, 0];
+    return [
+      (this.s.pos[0] + moon[0]) / 1000,
+      (this.s.pos[1] + moon[1]) / 1000,
+      (this.s.pos[2] + moon[2]) / 1000,
+    ];
   }
 
   moonPositionKm(): [number, number, number] {
-    const moon = moonPositionAt(this.s.t);
+    const moon = this.absoluteMoonPositionM();
     return [moon[0] / 1000, moon[1] / 1000, moon[2] / 1000];
   }
 
@@ -438,20 +456,20 @@ export class LunarDirector implements MissionDirector {
       const vc = circularVelocity(CONST.MU_EARTH, r);
       this.s.pos = [r, 0, 0];
       this.s.vel = [0, vc + (this.transfer?.tliDvMs ?? 3133), 0];
-      this.s.t = 0;
+      this.resetClock();
       this.burnDv = 0;
       this.go('TRANSFER');
     }
   }
 
   private coastToMoon(dt: number): void {
-    this.s = stepLunarRK4(this.s, dt);
-    const rel = moonRelative(this.s, this.s.t);
+    this.s = stepLunarRK4(this.s, dt, this.epochSec);
+    const rel = moonRelative(this.s, this.epochSec + this.s.t);
     if (rel.distM <= CONST.MOON_SOI_M) {
       this.body = 'MOON';
       this.s.pos = [...rel.pos];
       this.s.vel = [...rel.vel];
-      this.s.t = 0;
+      this.resetClock();
       this.go('LOI');
     }
     if (this.s.t > (this.transfer?.tofSec ?? 400000) * 3) this.go('EARTH_RETURN');
@@ -518,9 +536,8 @@ export class LunarDirector implements MissionDirector {
     this.body = 'EARTH';
     this.s.pos = [r, 0, 0];
     this.s.vel = [0, -circularVelocity(CONST.MU_EARTH, r) * 0.72, 0];
-    this.s.t = 0;
+    this.resetClock();
     this.go('EARTH_RETURN');
-    void moonPositionAt;
     void moonVelocityAt;
   }
 

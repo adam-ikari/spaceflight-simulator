@@ -448,6 +448,19 @@ export class Scene {
     this.rocketRoot.position.copyFrom(this.rocketPos);
   }
 
+  /** Drop the trail when the director retransitions to a new frame. */
+  clearTrajectory(): void {
+    if (!this.enabled) return;
+    this.trajectoryCount = 0;
+    this.trajectoryPositions.fill(0);
+    this.trajectory.updateVerticesData(
+      B.VertexBuffer.PositionKind,
+      this.trajectoryPositions,
+      false,
+      false,
+    );
+  }
+
   /** Append a point to the trajectory trail (input in km, Earth-centred). */
   addTrajectoryPoint(pos: Vec3Km): void {
     if (!this.enabled || this.trajectoryCount >= MAX_TRAJECTORY_POINTS) return;

@@ -27,11 +27,12 @@ pub unsafe extern "C" fn lunar_rk4(
     phase: f64,
     omega: f64,
     sma: f64,
+    epoch: f64,
 ) {
     let s = core::slice::from_raw_parts_mut(ptr, 7);
     let pos = [s[0], s[1], s[2]];
     let vel = [s[3], s[4], s[5]];
-    let t = s[6];
+    let t = s[6] + epoch;
 
     let a1 = acceleration(pos, t, mu_earth, mu_moon, phase, omega, sma);
     let p2 = [pos[0] + vel[0] * dt * 0.5, pos[1] + vel[1] * dt * 0.5, pos[2] + vel[2] * dt * 0.5];
@@ -51,5 +52,5 @@ pub unsafe extern "C" fn lunar_rk4(
     s[3] = vel[0] + sixth * (a1[0] + 2.0 * a2[0] + 2.0 * a3[0] + a4[0]);
     s[4] = vel[1] + sixth * (a1[1] + 2.0 * a2[1] + 2.0 * a3[1] + a4[1]);
     s[5] = vel[2] + sixth * (a1[2] + 2.0 * a2[2] + 2.0 * a3[2] + a4[2]);
-    s[6] = t + dt;
+    s[6] = s[6] + dt;
 }
