@@ -464,16 +464,27 @@ export class Scene {
   /** Append a point to the trajectory trail (input in km, Earth-centred). */
   addTrajectoryPoint(pos: Vec3Km): void {
     if (!this.enabled || this.trajectoryCount >= MAX_TRAJECTORY_POINTS) return;
-    const i = this.trajectoryCount;
-    this.trajectoryKm[i * 3] = pos[0];
-    this.trajectoryKm[i * 3 + 1] = pos[1];
-    this.trajectoryKm[i * 3 + 2] = pos[2];
     this.toScene(pos[0], pos[1], pos[2], this.trajPoint);
     const x = this.trajPoint.x;
     const y = this.trajPoint.y;
     const z = this.trajPoint.z;
-    // Extend the tail with the newest point so unused vertices stay degenerate.
-    for (let j = i; j < MAX_TRAJECTORY_POINTS; j++) {
+    if (this.trajectoryCount > 0) {
+      const last = (this.trajectoryCount - 1) * 3;
+      const dx = x - this.trajectoryPositions[last];
+      const dy = y - this.trajectoryPositions[last + 1];
+      const dz = z - this.trajectoryPositions[last + 2];
+      const minStep = this.frame === 'cruise' ? 0.2 : 0.02;
+      if (dx * dx + dy * dy + dz * dz < minStep * minStep) return;
+    }
+    const i = this.trajectoryCount;
+    this.trajectoryKm[i * 3] = pos[0];
+    this.trajectoryKm[i * 3 + 1] = pos[1];
+    this.trajectoryKm[i * 3 + 2] = pos[2];
+    this.trajectoryPositions[i * 3] = x;
+    this.trajectoryPositions[i * 3 + 1] = y;
+    this.trajectoryPositions[i * 3 + 2] = z;
+    // Keep unused vertices collapsed on the newest point.
+    for (let j = i + 1; j < MAX_TRAJECTORY_POINTS; j++) {
       this.trajectoryPositions[j * 3] = x;
       this.trajectoryPositions[j * 3 + 1] = y;
       this.trajectoryPositions[j * 3 + 2] = z;
@@ -677,10 +688,19 @@ export class Scene {
         this.trajectoryKm[i * 3 + 2],
         this.trajPoint,
       );
-      for (let j = i; j < MAX_TRAJECTORY_POINTS; j++) {
-        this.trajectoryPositions[j * 3] = this.trajPoint.x;
-        this.trajectoryPositions[j * 3 + 1] = this.trajPoint.y;
-        this.trajectoryPositions[j * 3 + 2] = this.trajPoint.z;
+      this.trajectoryPositions[i * 3] = this.trajPoint.x;
+      this.trajectoryPositions[i * 3 + 1] = this.trajPoint.y;
+      this.trajectoryPositions[i * 3 + 2] = this.trajPoint.z;
+    }
+    if (this.trajectoryCount > 0) {
+      const last = (this.trajectoryCount - 1) * 3;
+      const x = this.trajectoryPositions[last];
+      const y = this.trajectoryPositions[last + 1];
+      const z = this.trajectoryPositions[last + 2];
+      for (let j = this.trajectoryCount; j < MAX_TRAJECTORY_POINTS; j++) {
+        this.trajectoryPositions[j * 3] = x;
+        this.trajectoryPositions[j * 3 + 1] = y;
+        this.trajectoryPositions[j * 3 + 2] = z;
       }
     }
     this.trajectory.updateVerticesData(

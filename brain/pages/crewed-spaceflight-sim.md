@@ -5,7 +5,7 @@ category: decision
 status: active
 tags: [simulation, physics, rocket]
 created: "2026-11-09T23:28:13"
-updated: "2026-11-21T01:30:31"
+updated: "2026-11-21T08:53:45"
 ---
 
 <!-- compiled_truth -->
@@ -160,4 +160,10 @@ updated: "2026-11-21T01:30:31"
   kind: decision
   summary: "轨迹根因修复：LunarDirector 增加绝对历元，WASM RK4 接收历元偏移；positionKm 在月心系加回月球绝对位置；渲染端在地心位置跳变时清轨迹，避免简化阶段切换产生跨屏线段。火箭模型改为可辨识的 Saturn V/Apollo 11 堆栈。"
   source: "src/sim/LunarDirector.ts;src/physics/LunarKernel.ts;wasm/lunar_kernel.rs;src/main.ts;src/render/Scene.ts;src/render/RocketModel.ts"
+  affects: [crewed-spaceflight-sim]
+
+- time: 2026-11-21T08:53:45
+  kind: decision
+  summary: "模型改为阿波罗真实分级比例（S-IC 42.1m/S-II 24.8m/S-IVB 17.8m、5.05m 半径、25.9m 载荷包络）；轨迹改为按距离采样并线性重建，避免每帧写入导致月段无轨迹和尾点 O(n²) 填充。"
+  source: "src/render/RocketModel.ts;src/render/Scene.ts"
   affects: [crewed-spaceflight-sim]

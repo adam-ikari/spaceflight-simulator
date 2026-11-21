@@ -17,6 +17,7 @@ import {
   engineCount,
   splitStack,
 } from './vehicleGeometry';
+import { METRES_PER_UNIT } from './sceneScale';
 
 export interface RocketModel {
   root: B.TransformNode;
@@ -80,6 +81,10 @@ function buildMaterials(scene: B.Scene): Materials {
 }
 
 const TAU = Math.PI * 2;
+/** Historical Apollo 11 stack dimensions (metres), drawn at true scene scale. */
+const APOLLO_RADIUS_M = 5.05;
+const APOLLO_STAGE_HEIGHTS_M = [42.1, 24.8, 17.8];
+const APOLLO_PAYLOAD_HEIGHT_M = 25.9;
 
 export function buildRocketModel(
   scene: B.Scene,
@@ -92,7 +97,6 @@ export function buildRocketModel(
   const { core } = splitStack(stages, features.hasSolidBooster);
   const stack = core.length > 0 ? core : stages;
   const geo = computeVehicleGeometry(stages, features.hasSolidBooster);
-  const radius = geo.radius;
   const hasStrapOn = geo.strapOn !== null;
 
   // Saturn V default stack: LOX/RP-1 first stage under two LOX/LH2 stages and
@@ -105,6 +109,7 @@ export function buildRocketModel(
     stack[0]?.propellantId === 'LOX_RP1' &&
     stack[1]?.propellantId === 'LOX_LH2' &&
     stack[2]?.propellantId === 'LOX_LH2';
+  const radius = apollo ? APOLLO_RADIUS_M / METRES_PER_UNIT : geo.radius;
 
   // The S-IVB is narrower than the 10 m S-IC/S-II body.
   const upperR = radius * 0.66;
@@ -208,7 +213,9 @@ export function buildRocketModel(
 
   let y = 0;
   stack.forEach((stage, i) => {
-    const h = geo.stageHeights[i] ?? 0;
+    const h = apollo
+      ? APOLLO_STAGE_HEIGHTS_M[i] / METRES_PER_UNIT
+      : geo.stageHeights[i] ?? 0;
     const isSic = apollo && i === 0;
     const isSii = apollo && i === 1;
     const isSivb = apollo && i === 2;
@@ -340,7 +347,9 @@ export function buildRocketModel(
     y += h;
   });
 
-  const noseH = radius * NOSE_RADIUS_RATIO;
+  const noseH = apollo
+    ? APOLLO_PAYLOAD_HEIGHT_M / METRES_PER_UNIT
+    : radius * NOSE_RADIUS_RATIO;
   if (apollo) {
     // Apollo payload lives inside the derived nose envelope: SLA / LM hint,
     // Service Module, Command Module and its blunt aft heat-shield band.
