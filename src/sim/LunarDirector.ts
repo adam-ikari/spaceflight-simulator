@@ -34,18 +34,19 @@ import { computeVehicleGeometry, type VehicleGeometry } from '../render/vehicleG
 import type { MissionDirector, MissionTelemetry, Body } from './MissionDirector';
 
 type Phase =
-  | 'PAD' | 'LIFTOFF' | 'ASCENT' | 'PARK' | 'TLI' | 'TRANSFER'
+  | 'PAD' | 'LIFTOFF' | 'ASCENT' | 'STAGE_SEP' | 'PARK' | 'TLI' | 'TRANSFER'
   | 'LOI' | 'LUNAR_ORBIT' | 'DESCENT' | 'MOON_LANDING'
   | 'LUNAR_LAUNCH' | 'RENDEZVOUS' | 'TEI' | 'EARTH_RETURN'
   | 'EARTH_ENTRY' | 'LANDING' | 'DONE';
 
 export const LUNAR_PHASES: Phase[] = [
-  'PAD', 'LIFTOFF', 'ASCENT', 'PARK', 'TLI', 'TRANSFER', 'LOI', 'LUNAR_ORBIT',
+  'PAD', 'LIFTOFF', 'ASCENT', 'STAGE_SEP', 'PARK', 'TLI', 'TRANSFER', 'LOI', 'LUNAR_ORBIT',
   'DESCENT', 'MOON_LANDING', 'LUNAR_LAUNCH', 'RENDEZVOUS', 'TEI',
   'EARTH_RETURN', 'EARTH_ENTRY', 'LANDING', 'DONE',
 ];
 
 const PAD_DWELL_S = 2;
+const STAGE_SEP_DWELL_S = 1;
 const PARK_DWELL_S = 2;
 const ORBIT_DWELL_S = 3;
 const SURFACE_DWELL_S = 3;
@@ -56,6 +57,7 @@ const LANDING_DWELL_S = 3;
 
 const ASCENT_DV_MS = 9400;
 const ASCENT_ACCEL_MS2 = 18;
+const STAGE_SEP_KM = 120;
 const PITCHOVER_KM = 190;
 const LAUNCH_THRUST_N = 3.5e7;
 const SIVB_THRUST_N = 1e6;
@@ -64,6 +66,8 @@ const INITIAL_MASS_KG = 2.9e6;
 const MOON_ORBIT_ALT_KM = 100;
 const EARTH_ENTRY_ALT_KM = 120;
 const ENTRY_TARGET_M = 3000;
+/** Hyperbolic excess speed after TEI, m/s; retrograde against lunar motion. */
+const RETURN_V_INF_MS = 850;
 const TLI_ACCEL_MS2 = 8;
 
 const norm = (v: Vec3): number => Math.hypot(v[0], v[1], v[2]);
@@ -84,6 +88,7 @@ export class LunarDirector implements MissionDirector {
   /** Absolute TLI-relative epoch; `s.t` resets at frame changes but this does not. */
   private epochSec = 0;
   private burnDv = 0;
+  private sepDone = false;
   private ascentDvRemaining = ASCENT_DV_MS;
   private transfer: TransferSolution | null = null;
   private stopped = false;
@@ -230,6 +235,9 @@ export class LunarDirector implements MissionDirector {
       case 'ASCENT':
         this.earthAscent(dt);
         break;
+      case 'STAGE_SEP':
+        if (this.wallDwell >= STAGE_SEP_DWELL_S) this.go('ASCENT');
+        break;
       case 'PARK':
         if (this.wallDwell >= PARK_DWELL_S) this.startTli();
         break;
@@ -261,7 +269,7 @@ export class LunarDirector implements MissionDirector {
         if (this.wallDwell >= TEI_DWELL_S) this.startReturn();
         break;
       case 'EARTH_RETURN':
-        if (this.wallDwell >= RETURN_DWELL_S) this.go('EARTH_ENTRY');
+        this.coastToEarth(dt);
         break;
       case 'EARTH_ENTRY':
         this.entry(dt);
@@ -419,6 +427,13 @@ export class LunarDirector implements MissionDirector {
     }
   }
 
+  private separateFirstStage(): void {
+    const dryMass = this.stages[0]?.dryMassKg ?? 0;
+    this.massKg = Math.max(this.massKg - dryMass, INITIAL_MASS_KG * 0.05);
+    this.sepDone = true;
+    this.go('STAGE_SEP');
+  }
+
   private earthAscent(dt: number): void {
     const { r, dir, tan } = this.radial();
     const altKm = (r - CONST.R_EARTH) / 1000;
@@ -433,6 +448,10 @@ export class LunarDirector implements MissionDirector {
       0,
     ], LAUNCH_THRUST_N, this.ispLaunchS);
     if (this.p === 'LIFTOFF' && altKm >= 3) this.go('ASCENT');
+    if (!this.sepDone && altKm >= STAGE_SEP_KM) {
+      this.separateFirstStage();
+      return;
+    }
     if (altKm >= PITCHOVER_KM && this.ascentDvRemaining <= 60) {
       const vc = circularVelocity(CONST.MU_EARTH, norm(this.s.pos));
       this.s.vel = [tan[0] * vc, tan[1] * vc, 0];
@@ -504,15 +523,15 @@ export class LunarDirector implements MissionDirector {
     const radialV = this.s.vel[0] * dir[0] + this.s.vel[1] * dir[1];
     const tangentV = this.s.vel[0] * tan[0] + this.s.vel[1] * tan[1];
     const throttle = this.command?.throttle ?? 1;
-    const targetVr = -Math.min(80, Math.max(2, alt / 30));
-    const dv = Math.max(-2 * dt, Math.min(2 * throttle * dt, targetVr - radialV));
+    const targetVr = -Math.min(20, Math.max(0.2, alt / 60));
+    const dv = Math.max(-20 * dt, Math.min(20 * throttle * dt, targetVr - radialV));
     const tangentDv = Math.min(Math.abs(tangentV), 12 * throttle * dt) * Math.sign(tangentV) * -1;
     this.powered(dt, [
-      dir[0] * dv + tan[0] * tangentDv,
-      dir[1] * dv + tan[1] * tangentDv,
+      (dir[0] * dv + tan[0] * tangentDv) / dt,
+      (dir[1] * dv + tan[1] * tangentDv) / dt,
       0,
     ], 45e3, this.ispLaunchS);
-    if (alt <= 1000) {
+    if (alt <= 10) {
       this.s.pos = [CONST.R_MOON, 0, 0];
       this.s.vel = [0, 0, 0];
       this.go('MOON_LANDING');
@@ -532,26 +551,78 @@ export class LunarDirector implements MissionDirector {
   }
 
   private startReturn(): void {
-    const r = CONST.R_EARTH + EARTH_ENTRY_ALT_KM * 1000;
+    const epoch = this.epochSec + this.s.t;
+    const moon = this.absoluteMoonPositionM();
+    const moonVel = moonVelocityAt(epoch);
+    const moonR = norm(moon);
+    const radial: Vec3 = [moon[0] / moonR, moon[1] / moonR, 0];
+    const retro: Vec3 = [-moonVel[0] / norm(moonVel), -moonVel[1] / norm(moonVel), 0];
+    const orbitR = CONST.R_MOON + MOON_ORBIT_ALT_KM * 1000;
+    const escapeSpeed = Math.sqrt(
+      2 * circularVelocity(CONST.MU_MOON, orbitR) ** 2 + RETURN_V_INF_MS ** 2,
+    );
+    this.consume(1, 10e3, this.ispUpperS);
+    this.s.pos = [moon[0] + radial[0] * orbitR, moon[1] + radial[1] * orbitR, 0];
+    this.s.vel = [
+      moonVel[0] + retro[0] * RETURN_V_INF_MS,
+      moonVel[1] + retro[1] * RETURN_V_INF_MS,
+      0,
+    ];
     this.body = 'EARTH';
-    this.s.pos = [r, 0, 0];
-    this.s.vel = [0, -circularVelocity(CONST.MU_EARTH, r) * 0.72, 0];
     this.resetClock();
     this.go('EARTH_RETURN');
-    void moonVelocityAt;
+  }
+
+  private coastToEarth(dt: number): void {
+    const p = this.s.pos;
+    const v = this.s.vel;
+    const accel = (x: number, y: number): [number, number] => {
+      const r = Math.max(Math.hypot(x, y), 1);
+      const k = -CONST.MU_EARTH / (r * r * r);
+      return [k * x, k * y];
+    };
+    const a1 = accel(p[0], p[1]);
+    const a2 = accel(p[0] + v[0] * dt * 0.5, p[1] + v[1] * dt * 0.5);
+    const a3 = accel(
+      p[0] + (v[0] + a1[0] * dt * 0.5) * dt * 0.5,
+      p[1] + (v[1] + a1[1] * dt * 0.5) * dt * 0.5,
+    );
+    const a4 = accel(
+      p[0] + (v[0] + a2[0] * dt * 0.5) * dt,
+      p[1] + (v[1] + a2[1] * dt * 0.5) * dt,
+    );
+    const sixth = dt / 6;
+    const dvx = sixth * (a1[0] + 2 * a2[0] + 2 * a3[0] + a4[0]);
+    const dvy = sixth * (a1[1] + 2 * a2[1] + 2 * a3[1] + a4[1]);
+    const dx = dt * (v[0] + sixth * (a1[0] + a2[0] + a3[0]));
+    const dy = dt * (v[1] + sixth * (a1[1] + a2[1] + a3[1]));
+    v[0] += dvx;
+    v[1] += dvy;
+    p[0] += dx;
+    p[1] += dy;
+    this.s.t += dt;
+    const entryRadius = CONST.R_EARTH + EARTH_ENTRY_ALT_KM * 1000;
+    if (norm(p) <= entryRadius) this.go('EARTH_ENTRY');
   }
 
   private entry(dt: number): void {
     const { r, dir } = this.radial();
     const alt = Math.max(0, r - CONST.R_EARTH);
+    const speed = norm(this.s.vel);
     this.dragN = alt < 120e3 && this.geometry
-      ? dragForceN(this.geometry, norm(this.s.vel), alt / 1000)
+      ? dragForceN(this.geometry, speed, alt / 1000)
       : 0;
-    const decay = Math.exp(-dt / 20);
-    const speed = norm(this.s.vel) * decay;
-    const scale = speed / Math.max(norm(this.s.vel), 1);
-    this.s.vel = [this.s.vel[0] * scale, this.s.vel[1] * scale, 0];
-    this.s.pos = [dir[0] * (CONST.R_EARTH + alt * decay), dir[1] * (CONST.R_EARTH + alt * decay), 0];
+    const gravity = CONST.MU_EARTH / (r * r);
+    const dragAccel = this.dragN / Math.max(this.massKg, 1);
+    const ax = -dir[0] * gravity - (speed > 0 ? (this.s.vel[0] / speed) * dragAccel : 0);
+    const ay = -dir[1] * gravity - (speed > 0 ? (this.s.vel[1] / speed) * dragAccel : 0);
+    this.s.vel = [this.s.vel[0] + ax * dt, this.s.vel[1] + ay * dt, 0];
+    this.s.pos = [
+      this.s.pos[0] + this.s.vel[0] * dt,
+      this.s.pos[1] + this.s.vel[1] * dt,
+      0,
+    ];
+    this.s.t += dt;
     if (alt <= ENTRY_TARGET_M) this.go('LANDING');
   }
 }

@@ -5,7 +5,7 @@ category: decision
 status: active
 tags: [simulation, physics, rocket]
 created: "2026-11-09T23:28:13"
-updated: "2026-11-21T08:53:45"
+updated: "2026-11-23T00:25:52"
 ---
 
 <!-- compiled_truth -->
@@ -166,4 +166,10 @@ updated: "2026-11-21T08:53:45"
   kind: decision
   summary: "模型改为阿波罗真实分级比例（S-IC 42.1m/S-II 24.8m/S-IVB 17.8m、5.05m 半径、25.9m 载荷包络）；轨迹改为按距离采样并线性重建，避免每帧写入导致月段无轨迹和尾点 O(n²) 填充。"
   source: "src/render/RocketModel.ts;src/render/Scene.ts"
+  affects: [crewed-spaceflight-sim]
+
+- time: 2026-11-23T00:25:52
+  kind: decision
+  summary: "补齐四个任务物理阶段：一级分离（抛干重后进入 STAGE_SEP 再点燃上级）、连续月球软着陆、TEI 后地球两体 RK4 返航、再入段气动阻力积分；新增四阶段黑盒验收测试。"
+  source: "src/sim/LunarDirector.ts;tests/sim/MissionPhases.test.ts"
   affects: [crewed-spaceflight-sim]

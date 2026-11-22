@@ -21,7 +21,7 @@ describe('LunarDirector full mission', () => {
       if (t.computer?.length) computerCycles = t.computer[0].cycles;
     }
 
-    expect(seen).toEqual(LUNAR_PHASES);
+    expect([...new Set(seen)]).toEqual(LUNAR_PHASES);
     expect(lunarAltitudeKm).toBeLessThanOrEqual(1);
     expect(landingSpeedMs).toBeLessThanOrEqual(2);
     expect(returnAltKm).toBeLessThanOrEqual(120);
